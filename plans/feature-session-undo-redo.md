@@ -17,65 +17,74 @@ Enables experimentation without fear - try approaches, revert if they don't work
 
 ### UI Pattern
 
-**Inline input action + visual timeline indicator**
+**Inline toolbar + timeline divider (combining existing patterns)**
 
-Rationale:
-- Undo/redo is a frequent action that should be always accessible
-- Visual indicator in timeline shows current position
-- Inline buttons near input provide always-visible access
-- Combines with existing timeline/jump functionality
+Rationale: Undo/redo is frequent → visible buttons + visual timeline indicator
+- **Header**: Undo/redo buttons (always visible, next to title)
+- **Input toolbar**: Contextually near send button (reuse `ChatInput.tsx` footer pattern)
+- **Timeline divider**: Visual line showing undo point in message list
+- **Command Palette**: Keyboard-only fallback (Ctrl+Z / Ctrl+Y)
 
-Layout:
+Layout (desktop):
 ```
 ┌─────────────────────────────────────────┐
-│ [Undo] [Redo]    Session Title           │ ← Header buttons
+│ [↩ Undo] [↪ Redo]  Session Title        │ ← Header buttons
 ├─────────────────────────────────────────┤
 │  User: Fix the login bug                 │
 │  Assistant: Here's the fix...            │
 │                                         │
-│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━      │ ← Current position (undo point)
+│  ════════════════════════════════════   │ ← Undo divider (red)
+│  "Undo point - 3 messages will be removed" │
+│  ────────────────────────────────────── │
 │                                         │
-│  User: Actually, can you use OAuth?     │ ← Messages after undo point
-│  Assistant: Let me refactor...          │    (can be deleted with undo)
+│  User: Actually, can you use OAuth?     │ ← Faded (to be removed)
+│  Assistant: Let me refactor...          │
 │  [Streamed response...]                 │
 ├─────────────────────────────────────────┤
 │  [Input field with current prompt]      │
-│         [Undo disabled] [Redo active]  │ ← Inline buttons near input
+│         [↩ Undo disabled] [↪ Redo ✓]   │ ← Input toolbar
 └─────────────────────────────────────────┘
 ```
 
-Alternative positions for undo/redo buttons:
-1. **Header**: Always visible, next to session title
-2. **Input toolbar**: Next to "Send" button, contextually relevant
-3. **Command Palette**: Accessible via keyboard
+**Component reuse:**
+- Header buttons: Reuse `Header.tsx` button patterns (line 61)
+- Input toolbar: Reuse `ChatInput.tsx` footer (lines 1280-1311)
+- Divider: Reuse `StatusRow.tsx` divider patterns (line 201)
+- Tooltips: Existing `Tooltip` component
 
 ### User Workflow
 
+**Trigger:** Header buttons, input toolbar, or keyboard shortcuts (Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z)
+
 **Undo flow:**
-1. User is in a session with multiple turns after the message they want to go back to
-2. User clicks "Undo" in header or input toolbar (or uses keyboard shortcut)
-3. System confirms: "Undo to message: 'Fix the login bug'?"
-4. User confirms
-5. System calls `session.revert(messageId)` API
-6. All messages after that turn are removed
-7. The selected message's prompt is restored to input field
-8. Visual indicator shows current turn position
-9. User can edit prompt and submit again
+1. User clicks "Undo" button (header or input toolbar)
+2. **Option A - Quick undo:** Reverts to last message immediately
+3. **Option B - Selective undo:** Dialog opens showing message tree:
+   - Visual timeline of all messages
+   - Click any message to undo to that point
+   - Preview: "This will remove X messages"
+4. **Confirmation dialog** (if messages will be deleted):
+   ```typescript
+   // Reuse AlertDialog pattern from Radix UI
+   "Undo to 'Fix the login bug'?"
+   "This will remove 3 messages. This action cannot be undone."
+   [Cancel] [Undo]
+   ```
+5. API call to `session.revert(messageId)`
+6. Messages after undo point fade out and animate away
+7. Selected message's prompt restored to input field
+8. Visual divider shows new "undo point"
 
 **Redo flow:**
-1. User has undone and is at an earlier point in history
-2. User clicks "Redo" button
-3. System either:
-   - Restores next turn forward (if still in memory)
-   - Shows "Nothing to redo" if no revert active
-4. Session state is restored
+1. User clicks "Redo" button (previously disabled)
+2. Restores previously undone messages
+3. Divider moves back to original position
+4. Button state updates (disabled if no more redo available)
 
-**Timeline jump alternative:**
-1. User clicks any message in timeline
-2. Context menu appears with options:
-   - "Revert to this point"
-   - "Fork from this point"
-3. Selecting "Revert" performs undo to that message
+**Keyboard shortcuts:**
+- `Ctrl+Z` (or `Cmd+Z`): Undo
+- `Ctrl+Y` or `Ctrl+Shift+Z`: Redo
+- Both work globally (even when input not focused)
 
 ### Web Advantages
 
@@ -90,12 +99,31 @@ Alternative positions for undo/redo buttons:
 
 ### Mobile Considerations
 
-- Larger touch targets for undo/redo buttons
-- Swipe down on input field to undo (gesture)
-- Double-tap on message to undo to it
-- Bottom sheet showing undo options instead of context menu
-- Haptic feedback on undo/redone
-- "Undo" button prominently visible in mobile toolbar
+**Implementation:** Follow existing mobile patterns from `ChatInput.tsx`
+
+- **Buttons:**
+  - Larger touch targets: 48x48px (vs 36px desktop)
+  - Fixed in input toolbar (always visible on mobile)
+  - Haptic feedback on press (Web Vibration API)
+  
+- **Gestures:**
+  - Swipe left on input field: Undo
+  - Swipe right on input field: Redo
+  - Long-press message: Show bottom sheet with "Revert here" option
+  
+- **Bottom sheet** (reuse MobileOverlayPanel):
+  - Shows undo timeline when triggered
+  - Full-height for long undo histories
+  - Swipe to dismiss (built-in)
+
+- **Visual changes:**
+  - Undo divider: Thicker line, more visible
+  - Faded messages: Lower opacity (0.3) for better visibility on small screens
+  - Toast notifications: Longer duration (5s vs 3s)
+
+- **Optimization:**
+  - Max 10 undo steps shown in UI (full history in store)
+  - Debounced animations (60fps on mobile)
 
 ---
 
@@ -112,62 +140,111 @@ API endpoints:
 - `POST /session/revert` - Revert to specific message ID, removing all after
 - `POST /session.unrevert` - Clear revert state, remove undo point marker
 
-Both endpoints handle the actual message deletion and state management.
-
 **Store Functions:**
 
-Extend `useSessionStore`:
-- `undoSession(sessionId: string, messageId: string)` - calls revert API
-- `redoSession(sessionId: string)` - calls unrevert or restores next turn
-- No new store file needed - modify existing
+**Extend `useSessionStore`** (follow existing patterns):
+```typescript
+// Add to SessionStore interface
+undoState: {
+  revertMarker: Map<sessionId, messageId>;  // Current undo point
+  redoStack: Map<sessionId, messageId[]>;   // History for redo
+  isUndoDialogOpen: boolean;
+  selectedUndoTarget: string | null;        // Message ID for selective undo
+}
+```
+
+Add computed selectors:
+```typescript
+canUndo: (sessionId) => boolean
+canRedo: (sessionId) => boolean  
+currentUndoMessage: (sessionId) => Message | null
+undoHistoryCount: (sessionId) => number
+```
+
+Add actions:
+```typescript
+undoToMessage(sessionId: string, messageId: string): Promise<void>
+redo(sessionId: string): Promise<void>
+clearUndoState(sessionId: string): void
+openUndoDialog(sessionId: string): void
+closeUndoDialog(): void
+```
 
 **File to modify:**
-- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useSessionStore.ts`
-
-**State to track:**
-- `revertMarker: Map<sessionId, messageId>` - Which session is currently in undo state
-- `canUndo(sessionId)` - Check if undo available
-- `canRedo(sessionId)` - Check if redo available
+- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useSessionStore.ts` (extend existing store)
 
 ### Frontend Components
 
 **New Components to Create:**
 
-`UndoRedoControls.tsx` - Undo/redo button pair:
-- Shows undo/redo buttons with disabled states
-- Displays count of available undo/redo steps
-- Keyboard shortcuts working
-- Tooltip hints
+1. **UndoRedoControls.tsx** - Button pair (header + input toolbar):
+   - Reuse `Header.tsx` button patterns
+   - Reuse `ChatInput.tsx` footer icon patterns
+   - Disabled state with visual feedback
+   - Badge showing undo count (e.g., "↩ 3")
+   - Tooltip with keyboard shortcut hint
 
-`UndoIndicator.tsx` - Visual divider showing undo point in timeline:
-- Separator line through message list
-- "Reverted to this point" label
-- Click to see options (resume, redo)
-- Positioned between message lists
+2. **UndoIndicator.tsx** - Visual divider in message list:
+   - Reuse `StatusRow.tsx` divider patterns
+   - Animated line (red, dashed)
+   - "Reverted to here" label
+   - Click to show context menu (redo options)
+   - Use `DropdownMenu` for options
+
+3. **UndoConfirmationDialog.tsx** - Alert dialog for destructive undo:
+   - Reuse `AlertDialog` pattern (Radix UI)
+   - Shows message preview and count of messages to remove
+   - "Undo" button with destructive variant
+   - Escape key cancels, Enter confirms
 
 **Existing Components to Modify:**
 
-`MessageList.tsx` - Add undo indicator render:
-- Check for revert state for current session
-- Insert UndoIndicator at correct position
-- Style messages after undo point differently (faded, with "undo" badge)
+1. **Header.tsx** - Add undo/redo buttons:
+   - Add to right side of header (before settings)
+   - Follow existing `headerIconButtonClass` pattern (line 61)
+   - Only show when undo/redo available
 
-`ChatInput.tsx` - Add undo/redo buttons to toolbar:
-- Place near send button
-- Update based on session state
+2. **ChatInput.tsx** - Add to input toolbar:
+   - Add near send button (line 1306)
+   - Use existing icon button patterns
+   - Sync disabled state with session store
 
-`CommandPalette.tsx` - Add undo/redo commands:
-- "Undo last turn" and "Redo" menu items
-- Show keyboard shortcuts
+3. **MessageList.tsx** - Add undo indicator:
+   - Check `undoState.revertMarker` for current session
+   - Insert `UndoIndicator` at correct position
+   - Fade messages after undo point (opacity 0.5)
 
-`Sidebar/Session item` - Show undo state badge:
-- Display icon/mark on sessions with active undo
+4. **CommandPalette.tsx** - Add commands:
+   ```typescript
+   <CommandItem onSelect={handleUndo}>
+     <RiArrowGoBackLine className="mr-2 h-4 w-4" />
+     <span>Undo</span>
+     <CommandShortcut>Ctrl+Z</CommandShortcut>
+   </CommandItem>
+   <CommandItem onSelect={handleRedo}>
+     <RiArrowGoForwardLine className="mr-2 h-4 w-4" />
+     <span>Redo</span>
+     <CommandShortcut>Ctrl+Y</CommandShortcut>
+   </CommandItem>
+   ```
 
 **Radix UI Primitives to Use:**
-- Previously used: No new primitives needed
-- Maybe `AlertDialog` for undo confirmation
+- `AlertDialog`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogTitle`, `AlertDialogAction`
+- `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem` (for undo options)
+- Existing tooltip patterns
 
 **File Locations:**
+```
+packages/ui/src/components/chat/
+  ├── UndoRedoControls.tsx            (new - header + input buttons)
+  ├── UndoIndicator.tsx              (new - timeline divider)
+  ├── UndoConfirmationDialog.tsx     (new - destructive action confirm)
+  ├── MessageList.tsx                (modify - add indicator)
+  ├── ChatInput.tsx                  (modify - add toolbar buttons)
+packages/ui/src/components/layout/
+  └── Header.tsx                     (modify - add header buttons)
+packages/ui/src/components/ui/
+  └── CommandPalette.tsx             (modify - add commands)
 ```
 packages/ui/src/components/chat/
   ├── UndoRedoControls.tsx            (new)
@@ -228,28 +305,47 @@ packages/ui/src/components/ui/
 - What if revert API fails?
 - **Solution**: Show error toast, keep UI in current state
 
+### Accessibility (A11y)
+
+**Keyboard shortcuts (global):**
+- `Ctrl+Z` / `Cmd+Z`: Undo (works anywhere in app)
+- `Ctrl+Y` / `Cmd+Y` or `Ctrl+Shift+Z` / `Cmd+Shift+Z`: Redo
+- Focus remains in current input (no focus trap)
+
+**ARIA attributes:**
+- Buttons: `aria-label="Undo to message: 'Fix the login bug'"` (when active)
+- Divider: `role="separator"`, `aria-label="Undo point"`
+- Faded messages: `aria-hidden="true"` (or keep with `aria-label="Message removed by undo"`)
+
+**Screen readers:**
+- Live region: Announce "Undo available - 3 messages can be undone"
+- On undo: "Undone 3 messages, restored prompt to input"
+- Confirmation dialog: Focus trap, announced properly
+
+**Focus management:**
+- After undo: Focus textarea, select all text
+- After confirmation dialog: Return focus to trigger button
+
 ---
 
 ## MVP vs Nice-to-Have
 
 ### MVP (Must-have)
-- Undo session to any previous message
-- Redo (clear undo state)
-- Visual indicator in timeline
-- Undo/redo buttons in header and near input
-- Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
-- Confirmation dialog before destructive undo
-- Success/error toasts
+- ✅ Undo session to any previous message
+- ✅ Redo (clear undo state)
+- ✅ Visual divider in timeline
+- ✅ Undo/redo buttons (header + input toolbar)
+- ✅ Keyboard shortcuts (Ctrl+Z/Y globally)
+- ✅ Confirmation dialog for destructive undo
+- ✅ Toast notifications (Sonner)
+- ✅ Mobile gestures + larger touch targets
 
 ### Nice-to-Have (Enhancements for Later)
-- Step-by-step undo/redo (not just jump to point)
-- Undo queue visualization (show branching paths)
-- Undo different parts of session independently (e.g., undo tool calls only)
-- Save undo point as named checkpoint
-- Share undo point with others (create shared checkpoint)
-- Visual diff showing what would be undone
-- Redo to specific alternative paths (if multiple were explored)
-- Undo history sidebar showing all branches
-- Merge branches (combine work from two undo paths)
-- Auto-save checkpoint periodically
-- Export/import entire undo tree
+- Step-by-step undo/redo (sequential)
+- Undo branching visualization (multiple paths)
+- Selective undo (message types, tool calls)
+- Named checkpoints (save undo point)
+- Visual diff preview before undo
+- Undo history sidebar
+- Merge branches (combine paths)
+- Auto-checkpoints (periodic saves)

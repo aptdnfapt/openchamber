@@ -17,93 +17,95 @@ Eliminates re-typing common prompts. Allows users to "park" a complex prompt the
 
 ### UI Pattern
 
-**Dropdown/combobox + saved prompts sidebar**
+**Dropdown/Popover + Command Palette integration**
 
-Rationale:
-- Stash should be quick to access but not take up screen space
-- Web allows visual previews and richer organization than TUI
-- Drag-and-drop for prioritization
-- Better than dialog because can be persistent or collapsible side panel
+Rationale: Stash is quick access → dropdown from input toolbar
+- **Popover panel**: Collapsible, shows on click
+- **Command Palette**: Quick search + load without opening panel
+- **Web advantage**: Rich previews, search, drag-and-drop (future)
 
-Layout:
+Layout (desktop):
 ```
 ┌─────────────────────────────────────────┐
 │  [Input field with current prompt]      │
-│  [Send]  [Save to Stash ↓]  [Clear]    │ ← Stash button
+│  [Send]  [★ Stash ▼]  [Clear]          │ ← Stash dropdown button
 ├─────────────────────────────────────────┤
 │  Chat messages...                       │
 └─────────────────────────────────────────┘
 
-┌──────────────────────────────────────────┐
-│ Stash ▼ [+] [Refresh]             [✕]   │ ← Stash dropdown/panel
-├──────────────────────────────────────────┤
-│ ┌────────────────────────────────────┐  │
-│ │ Fix authentication bug (2min ago) │  │
-│ │ Can you investigate the login...  │  │
-│ │                                  │  │
-│ │                [Load] [Delete]   │  │
-│ └────────────────────────────────────┘  │
-│                                          │
-│ ┌────────────────────────────────────┐  │
-│ │ Deploy to production (1hr ago)    │  │
-│ │ Review the deployment checklist...│  │
-│ │                                  │  │
-│ │                [Load] [Delete]   │  │
-│ └────────────────────────────────────┘  │
-│                                          │
-│ ┌────────────────────────────────────┐  │
-│ │ Code review template               │  │
-│ │ Review this PR focusing on...    │  │
-│ │                                  │  │
-│ │                [Load] [Delete]   │  │
-│ └────────────────────────────────────┘  │
-└──────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ ★ Stash (3)            [Search...] [+]  │ ← Popover panel
+├─────────────────────────────────────────┤
+│ ┌─────────────────────────────────────┐ │
+│ │ Fix auth bug (2m ago)          [📋]│ │ ← Prompt card
+│ │ "Can you investigate the..."        │ │
+│ │                     [Load] [Delete]│ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ ┌─────────────────────────────────────┐ │
+│ │ Deploy to prod (1h ago)        [📋]│ │
+│ │ "Review the checklist..."           │ │
+│ │                     [Load] [Delete]│ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ ┌─────────────────────────────────────┐ │
+│ │ Code review template (2d ago)  [📋]│ │
+│ │ "Review this PR focusing on..."     │ │
+│ │                     [Load] [Delete]│ │
+│ └─────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
 ```
 
-Alternative approaches:
-1. **Persistent sidebar panel** - Always visible, collapsible
-2. **Settings page section** - "Saved Prompts" tab
-3. **Bottom drawer** - Slide up from bottom
+**Implementation patterns:**
+- Reuse `ChatInput.tsx` dropdown pattern (lines 1081-1113)
+- Reuse `DropdownMenu` component (existing Radix UI)
+- Reuse `CommandPalette.tsx` search pattern
 
 ### User Workflow
 
+**Trigger:** Stash button in input toolbar (★ icon) or Command Palette (Ctrl+K → "Stash")
+
 **Save to stash:**
-1. User types a prompt in the input field
-2. User doesn't want to send yet but wants to save it
-3. User clicks "Save to Stash" button (dropdown icon)
-4. Stash panel opens showing saved prompts
-5. Current prompt is automatically saved to top of list
-6. Success toast: "Prompt saved to stash"
-7. Input field is optionally cleared (user preference)
+1. User types prompt in input field
+2. Clicks "★ Stash" button (input toolbar)
+3. **Auto-save:** Current input saved to stash top
+4. Toast: "Saved to stash"
+5. Input optionally cleared (toggle in settings)
 
 **Load from stash:**
-1. User opens stash (via button or Command Palette)
-2. Sees list of saved prompts sorted by recency
-3. User can:
-   - Click "Load" on a prompt to replace current input
-   - Click on prompt card to preview and load
-   - Drag prompt to input field (advanced)
-4. Loaded prompt appears in input field
-5. Prompt is removed from stash (TUI behavior, or keep as option)
-6. User can edit before sending
+1. Click "★ Stash" → Popover opens
+2. Shows stashed prompts (newest first)
+3. **Card displays:**
+   - Title (first 40 chars)
+   - Preview (first 2 lines)
+   - Timestamp (human-readable)
+   - Usage count badge (if tracked)
+4. **Actions:**
+   - Click "Load" → Replaces input, focus textarea
+   - Click card → Preview modal → Load
+   - Drag to input (future nice-to-have)
+5. **Option:** Remove from stash on load (toggle)
 
 **Delete from stash:**
-1. User opens stash panel
-2. Clicks "Delete" on a saved prompt
-3. Confirmation: "Delete this saved prompt?"
-4. Prompt removed from stash
+1. Hover over prompt card → "Delete" button appears
+2. Click → Confirmation dialog
+3. Confirm → Removed from stash
+4. Toast: "Removed from stash"
 
-**Organize stash:**
-1. User can add tags/labels to saved prompts
-2. Filter stash by tags or search text
-3. Reorder prompts by drag-and-drop
-4. Pin important templates to top
+**Search stash:**
+1. Click "★ Stash" or Ctrl+K → "Search stash"
+2. Type to filter prompts (real-time)
+3. Results show matching prompts
+4. Load directly from search results
 
 **Command Palette integration:**
-1. User opens Command Palette
-2. Types "stash" or "saved"
-3. Sees "Open Prompt Stash" and list of recent prompts
-4. Can type to search and load directly without opening panel
+```
+Ctrl+K → "Stash" shows:
+- "Open Prompt Stash" (opens popover)
+- "Fix authentication bug" (direct load)
+- "Deploy to production" (direct load)
+- "Save current input to stash"
+```
 
 ### Web Advantages
 
@@ -119,13 +121,34 @@ Alternative approaches:
 
 ### Mobile Considerations
 
-- Stash as bottom sheet instead of dropdown
-- Swipe up to open, swipe down to close
-- Full-height scrollable list
-- "Add to Stash" floating action button (FAB)
-- Larger touch targets for load/delete buttons
-- Pull-to-refresh to reload stash
-- Search bar auto-focus panel open
+**Implementation:** Reuse existing mobile patterns
+
+- **Stash panel as bottom sheet:**
+  - Use `MobileOverlayPanel` (same as other dialogs)
+  - Full-height: `contentMaxHeightClassName="h-[calc(100vh-8rem)]"`
+  - Swipe down to dismiss (built-in)
+  - FAB for "Save current" if input has content
+
+- **Prompt cards:**
+  - Larger touch targets (48x48px buttons)
+  - Full-width cards
+  - Visible actions (not just on hover)
+  - Swipe left to delete (common mobile pattern)
+
+- **Search:**
+  - Auto-focus search bar when panel opens
+  - Large search input (44px height)
+  - Clear button visible
+
+- **FAB (Floating Action Button):**
+  - Show when input has content
+  - "Save to stash" button (bottom right)
+  - Ripple effect on press
+
+- **Keyboard handling:**
+  - Hide panel when keyboard opens
+  - Restore panel after keyboard dismiss
+  - Quick save via keyboard shortcut (if keyboard visible)
 
 ---
 
@@ -136,84 +159,123 @@ Alternative approaches:
 **OpenCode API Check:**
 
 Result:
-- ❌ API missing - Stash is client-side in TUI (uses KV store)
+- ❌ API missing - Stash is client-side only
 
-Backend does NOT provide stash API. Store prompt stash entirely on client side.
-
-**Client-side storage options:**
-1. **localStorage** - Simple, persists across sessions
-2. **IndexedDB** - Better for larger stash with many items
-3. **Browser-synced** - Sync with user account (if OpenCode adds account system)
-
-**Decision**: Use localStorage for MVP, can migrate to IndexedDB or sync API later.
+**Decision:** Use `localStorage` for MVP (simple, persists across sessions)
 
 **Store Functions:**
 
-Create `usePromptStash` (new store, or hook using localStorage):
-- `stashedPrompts: StashedPrompt[]` - Array of saved prompts
-- `saveToStash(text: string, metadata?: object)` - Add new prompt
-- `loadFromStash(id: string): string` - Get and optionally remove
-- `deleteFromStash(id: string)` - Remove without loading
-- `search(query: string): StashedPrompt[]` - Filter stash
+**Create `usePromptStashStore`** (new Zustand store):
+```typescript
+interface StashedPrompt {
+  id: string;
+  text: string;
+  title: string;           // First 40 chars of text
+  timestamp: number;
+  usageCount: number;
+  tags?: string[];
+}
+
+interface PromptStashStore {
+  prompts: StashedPrompt[];
+  
+  // Actions
+  savePrompt(text: string): void
+  loadPrompt(id: string): string | null
+  deletePrompt(id: string): void
+  searchPrompts(query: string): StashedPrompt[]
+  updatePrompt(id: string, updates: Partial<StashedPrompt>): void
+  clearAll(): void
+  reorderPrompts(promptIds: string[]): void  // For drag-and-drop (future)
+}
+```
+
+**Persistence:** 
+- Save to `localStorage` key `openchamber-prompt-stash`
+- Load on store initialization
+- Auto-save on every change
 
 **File to create:**
-- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/usePromptStash.ts`
+- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/usePromptStashStore.ts`
 
-Or implement as hook:
-- `/home/idc/proj/openchamber-wj/packages/ui/src/hooks/usePromptStash.ts`
+**Storage limits:**
+- Max 50 prompts (configurable)
+- Max 10KB per prompt (truncate with warning)
+- Total storage: ~500KB (well under 5MB localStorage limit)
 
 ### Frontend Components
 
 **New Components to Create:**
 
-`StashButton.tsx` - Button to open stash dropdown:
-- Button with saved icon
-- Badge showing count of stashed prompts
-- Opens/stashes panel
+1. **StashButton.tsx** - Input toolbar button:
+   - Reuse `ChatInput.tsx` icon button patterns (lines 1089-1091)
+   - Badge showing stash count (like `SessionSidebar.tsx` badges)
+   - Tooltip: "Save to stash (Ctrl+S)"
+   - Opens StashPanel on click
 
-`StashPanel.tsx` - Dropdown/panel showing saved prompts:
-- List of StashedPromptCard components
-- Search/filter input
-- "Add current prompt" button
-- Refresh/delete all buttons
-- Empty state message
+2. **StashPanel.tsx** - Popover panel:
+   - Reuse `DropdownMenu` pattern (existing Radix UI)
+   - Position: align-end (bottom-right of button)
+   - Max height: `max-h-[400px]` with scroll
+   - Search input at top (reuse CommandPalette input)
+   - "Save current" button
+   - Prompt list with StashedPromptCard
 
-`StashedPromptCard.tsx` - Individual saved prompt display:
-- Truncated prompt preview (first 2-3 lines)
-- Metadata (timestamp, source session)
-- Tags/labels
-- Load and Delete buttons
-- Click to load
+3. **StashedPromptCard.tsx** - Individual prompt item:
+   - Reuse `SettingsSidebarItem.tsx` pattern
+   - Title (first line, bold)
+   - Preview (second line, truncated)
+   - Timestamp (bottom right)
+   - Hover actions: Load, Delete
+   - Click to load
 
-`StashEmptyState.tsx` - Empty state when no prompts saved:
-- Prompt with example use cases
-- "Learn more about stash" link to documentation
+4. **StashEmptyState.tsx** - Empty state:
+   - Show when no prompts saved
+   - Icon + message: "No saved prompts"
+   - Tip: "Type a prompt and click ★ to save it"
+   - Link to documentation
 
 **Existing Components to Modify:**
 
-`ChatInput.tsx` - Add stash button:
-- Add StashButton next to Send button
-- Wire up stash actions
-- Persist stash state
+1. **ChatInput.tsx** - Add stash button:
+   - Add to input toolbar (line 1303-1308)
+   - Next to send button (like attachment menu)
+   - Toggle panel on click
+   - Keyboard shortcut: Ctrl+S (save), Ctrl+Shift+S (open)
 
-`CommandPalette.tsx` - Add stash commands:
-- "Open Prompt Stash" command
-- "Save to Stash" command
-- List of recent prompts as shortcuts to load
+2. **CommandPalette.tsx** - Add stash commands:
+   ```typescript
+   <CommandGroup heading="Prompt Stash">
+     <CommandItem onSelect={handleOpenStash}>
+       <RiStarLine className="mr-2 h-4 w-4" />
+       <span>Open Prompt Stash</span>
+       <CommandShortcut>Ctrl+Shift+S</CommandShortcut>
+     </CommandItem>
+     <CommandItem onSelect={handleSaveToStash}>
+       <RiStarSLine className="mr-2 h-4 w-4" />
+       <span>Save Current Input</span>
+       <CommandShortcut>Ctrl+S</CommandShortcut>
+     </CommandItem>
+     <CommandSeparator />
+     {/* Recent prompts */}
+     <CommandItem onSelect={() => handleLoadPrompt(prompt.id)}>
+       <span>{truncate(prompt.title, 30)}</span>
+     </CommandItem>
+   </CommandGroup>
+   ```
 
 **Radix UI Primitives to Use:**
-- `Popover` or `DropdownMenu` for stash panel
-- `Dialog` for alternative full-screen view (mobile)
+- `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuTrigger`
 - `AlertDialog` for delete confirmation
-- `Combobox` for search/filter interface if using command palette pattern
+- Existing scroll patterns
 
 **File Locations:**
 ```
 packages/ui/src/stores/
-  └── usePromptStash.ts             (new)
+  └── usePromptStashStore.ts        (new)
 
 packages/ui/src/components/chat/
-  ├── ChatInput.tsx                 (modify - add stash button)
+  ├── ChatInput.tsx                 (modify - add button)
   ├── stash/                       (new directory)
   │   ├── StashButton.tsx           (new)
   │   ├── StashPanel.tsx            (new)
@@ -221,7 +283,7 @@ packages/ui/src/components/chat/
   │   └── StashEmptyState.tsx       (new)
 
 packages/ui/src/components/ui/
-  └── CommandPalette.tsx            (modify - add stash commands)
+  └── CommandPalette.tsx            (modify - add commands)
 ```
 
 ### State Management
@@ -290,43 +352,71 @@ packages/ui/src/components/ui/
 - **Solution**: Store as plain text, render preview with markdown if desired
 
 **Persistence across reloads:**
-- Stash should persist between page refreshes
-- **Solution**: localStorage handles this automatically
+- localStorage handles this automatically
+- Store initialization loads from localStorage
 
 **Large stash performance:**
-- Loading huge list of prompts could be slow
-- **Solution**: Virtual scroll for list, lazy render cards
+- Virtual scroll for list (React Window if needed)
+- Lazy render cards (render only visible)
 
 **Mobile limits:**
-- Even smaller storage on some mobile browsers
-- **Solution**: Aggressive cleanup of old unused prompts
+- Smaller storage on some mobile browsers
+- Cap: max 20 prompts on mobile
+- Auto-delete oldest if limit reached
+
+---
+
+### Accessibility (A11y)
+
+**Keyboard shortcuts:**
+- `Ctrl+S` / `Cmd+S`: Save current input to stash
+- `Ctrl+Shift+S` / `Cmd+Shift+S`: Open stash panel
+- Arrow keys to navigate stash list
+- Enter to load selected prompt
+
+**ARIA attributes:**
+- Button: `aria-label="Save to stash (3 prompts saved)"`
+- Panel: `role="dialog"`, `aria-label="Prompt stash"`
+- Cards: `role="option"`, `aria-label={prompt title}`
+- Delete button: `aria-label="Delete prompt: {title}"`
+
+**Focus management:**
+- Focus moves to search when panel opens
+- Focus returns to input after load
+- Escape closes panel (returns focus to button)
+
+**Screen readers:**
+- Live region for actions: "Saved prompt to stash"
+- Announce count: "3 prompts in stash"
+- Clear button labels
 
 ---
 
 ## MVP vs Nice-to-Have
 
 ### MVP (Must-have)
-- Save current prompt to stash
-- Load stashed prompt to input
-- List all saved prompts with metadata
-- Delete individual prompts
-- Search/filter stash
-- Persist stash in localStorage
-- Command Palette integration
+- ✅ Save current prompt to stash
+- ✅ Load stashed prompt to input
+- ✅ List all saved prompts (newest first)
+- ✅ Delete individual prompts
+- ✅ Search/filter stash
+- ✅ Persist in localStorage
+- ✅ Command Palette integration
+- ✅ Keyboard shortcuts (Ctrl+S)
+- ✅ Mobile responsive (bottom sheet)
 
 ### Nice-to-Have (Enhancements for Later)
-- Save with tags/labels
+- Tags/labels for prompts
 - Filter by tags
-- Reorder prompts by drag-and-drop
+- Drag-and-drop reordering
 - Pin important templates
-- Export/import stash to JSON
-- Share stash snippets (via share link)
-- Prompt templates with placeholders (e.g., "Review {PR_NUMBER}")
-- Auto-categorize by session/directory
-- Show usage statistics (how often loaded)
-- Auto-suggest similar stashed prompts when typing
-- Rich text editor for editing stashed prompts
-- Collaboration features (share stash with team)
-- Sync stash across devices via account
-- Stash analytics (most used prompts)
-- Quick-add from AI suggestion responses
+- Export/import JSON
+- Share via link
+- Template placeholders (e.g., "{PR_NUMBER}")
+- Auto-categorize by session
+- Usage statistics
+- Auto-suggest similar prompts
+- Rich text editor
+- Team collaboration
+- Cross-device sync
+- Stash analytics

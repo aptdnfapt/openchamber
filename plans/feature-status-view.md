@@ -22,110 +22,76 @@ Quickly diagnose system issues, see which services are healthy, and troubleshoot
 
 ### UI Pattern
 
-**Modal/Dialog overlay with tabbed sections**
+**Modal dialog with tabs (reusing existing patterns)**
 
-Rationale:
-- Status view is diagnostic, not primary workflow - modal is appropriate
-- Tabbed sections separate concerns while keeping everything accessible
-- Always accessible via Command Palette, not blocking main UI
+Rationale: Status view is diagnostic → modal dialog with tabbed sections
+- Reuse `Dialog` component (Radix UI)
+- Reuse `Tabs` pattern from existing settings pages
+- Command Palette entry for quick access
 
-Layout:
+Layout (desktop):
 ```
 ┌─────────────────────────────────────────┐
 │  System Status                 [✕]      │
 ├─────────────────────────────────────────┤
-│  ┌───┬──────────────┬────────────────┐  │
-│  │MC │ MCP Servers │ LSP │ Formatters│  │ ← Tabs
-│  │P  │    ● ● ○    │    │     ●     │  │   with status quick
-│  └───┴──────────────┴────────────────┘  │      counts
-│  │                                      │
-│  │ ┌────────────────────────────────┐ │ ├── Section header
-│  │ │ MCP Servers                      │ │ │
-│  │ ├────────────────────────────────┤ │ │
-│  │ │ ● 3 MCP Servers Online          │ │ │
-│  │ │   (1 failed, 2 connected)        │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● filesystem-api                │ │ │
-│  │ │   Connected                     │ │ │
-│  │ │   0.5s latency                  │ │ │
-│  │ │                                 │ │ │
-│  │ │ ○ database-connector            │ │ │
-│  │ │   Failed - Connection timeout    │ │ │
-│  │ │   [Retry] [Configure]           │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● weather-service               │ │ │
-│  │ │   Connected                     │ │ │
-│  │ │   0.2s latency                  │ │ │
-│  │ │                                 │ │ │
-│  └────────────────────────────────┘ │ │
-│                                       │ │
-│  │ ┌────────────────────────────────┐ │ │
-│  │ │ LSP Servers                      │ │ │
-│  │ ├────────────────────────────────┤ │ │
-│  │ │ ● 2 LSP Servers Active           │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● TypeScript                     │ │ │
-│  │ │   Connected                     │ │ │
-│  │ │   Working directory: /src       │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● Python                         │ │ │
-│  │ │   Connected                     │ │ │
-│  │ │   Working directory: /app       │ │ │
-│  │ │                                 │ │ │
-│  └────────────────────────────────┘ │ │
+│  [MCP ●●○] [LSP ●●] [Fmt ●] [Plugins ●●]│ ← Tab bar with counts
+├─────────────────────────────────────────┤
 │                                       │
-│  │ ┌────────────────────────────────┐ │
-│  │ │ Formatters                       │ │ │
-│  │ ├────────────────────────────────┤ │ │
-│  │ │ ● 1 Formatter Enabled            │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● Prettier                      │ │ │
-│  │ │   Enabled - v3.2.5              │ │ │
-│  │ │                                 │ │ │
-│  └────────────────────────────────┘ │ │
+│  ┌─────────────────────────────────┐   │
+│  │ MCP Servers                     │   │
+│  ├─────────────────────────────────┤   │
+│  │ ● 3 MCP Servers Online          │   │
+│  │   (1 failed, 2 connected)       │   │
+│  │                                 │   │
+│  │ ● filesystem-api          [✓]  │   │ ← Status card
+│  │   Connected  ·  0.5s latency    │   │
+│  │                                 │   │
+│  │ ○ database-connector       [✗]  │   │
+│  │   Failed - Connection timeout   │   │
+│  │   [Retry]  [Configure]          │   │
+│  │                                 │   │
+│  └─────────────────────────────────┘   │
 │                                       │
-│  │ ┌────────────────────────────────┐ │
-│  │ │ Plugins                         │ │ │
-│  │ ├────────────────────────────────┤ │ │
-│  │ │ ● 2 Plugins Loaded               │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● custom-script-plugin          │ │ │
-│  │ │   Active                        │ │ │
-│  │ │                                 │ │ │
-│  │ │ ● database-tools                │ │ │
-│  │ │   Active @2.1.0                 │ │ │
-│  │ │                                 │ │ │
-│  └────────────────────────────────┘ │ │
-│                                       │
-│              [Refresh] [Close]        │
+│              [Refresh]  [Copy]  [Close]│ ← Footer buttons
 └─────────────────────────────────────────┘
 ```
 
+**Implementation patterns:**
+- Reuse `SettingsPage.tsx` tab patterns (Radix Tabs)
+- Reuse `StatusRow.tsx` status badge patterns
+- Reuse `SettingsSidebarItem.tsx` for server cards
+
 ### User Workflow
 
+**Trigger:** Command Palette (Ctrl+K → "System Status") or Settings → "Status"
+
 **Open status view:**
-1. User opens Command Palette (Ctrl+K)
-2. Types "status" or selects "View System Status"
-3. Status dialog opens showing all sections
-4. Status refreshes automatically if visible
+1. Ctrl+K → Type "status" → Select "View System Status"
+2. Dialog opens with default tab (last selected or MCP)
+3. Status auto-refreshes every 5 seconds (configurable)
 
-**Inspect MCP servers:**
-1. In status view, click MCP tab
-2. See list of all MCP servers with status icons
-3. Failed servers show error details
-4. Click "Retry" to reconnect
-5. Click "Configure" to open MCP settings
+**Navigate sections:**
+1. **Tab bar:** Click tab (MCP, LSP, Formatters, Plugins)
+2. **Badges:** Each tab shows status counts (e.g., "MCP ●●○")
+3. **Quick scan:** Summary in each tab header
 
-**Inspect LSP servers:**
-1. Click LSP tab
-2. See which languages have active LSP servers
-3. See working directory for each
-4. Diagnostic counts if available (n/a from current API)
+**Inspect items:**
+1. Each server/plugin shows:
+   - Name + version
+   - Status badge (Connected/Failed/Disabled)
+   - Details: latency, directory, error message
+2. **Failed items:** Show error details (expandable)
+3. **Actions:** Retry, Configure buttons (context-dependent)
 
 **Refresh status:**
-1. Click "Refresh" button in dialog footer
-2. Fetch latest status from backend
-3. Update all sections with new data
+1. Click "Refresh" button (footer)
+2. Loading state: tabs gray out, spinner appears
+3. Updated data appears with fade-in animation
+
+**Export for bug reports:**
+1. Click "Copy Status" button (footer)
+2. Formats as Markdown (ready for GitHub issues)
+3. Toast: "Status copied to clipboard"
 
 ### Web Advantages
 
@@ -140,12 +106,34 @@ Layout:
 
 ### Mobile Considerations
 
-- Full-screen dialog instead of tabbed modal
-- Sections as separate slides/pages
-- Swipe horizontally between tabs
-- "View Status" floating action button
-- Vertical scrollable list for each section
-- Large touch targets for retry/configure buttons
+**Implementation:** Reuse existing mobile patterns
+
+- **Full-screen dialog:**
+  - Use `MobileOverlayPanel` (full-height)
+  - Tab bar at top (scrollable if many tabs)
+  - Swipe left/right between tabs (carousel)
+  - Back button returns to previous tab
+
+- **Status cards:**
+  - Larger touch targets (48x48px buttons)
+  - Full-width cards
+  - Visible actions (Retry, Configure)
+  - Expandable error details (tap to expand)
+
+- **FAB (Floating Action Button):**
+  - "View Status" button (bottom right corner)
+  - Shows when status has issues (red badge)
+  - Opens StatusView immediately
+
+- **Performance:**
+  - Lazy load sections (load only active tab)
+  - Debounced refresh (max once per 10s)
+  - Virtual scroll for long lists
+
+- **Export:**
+  - "Copy Status" button in footer
+  - Toast confirmation (longer duration)
+  - Ready for sharing
 
 ---
 
@@ -156,80 +144,124 @@ Layout:
 **OpenCode API Check:**
 
 Result:
-- ✅ API exists: Multiple endpoints for status
-  - `GET /mcp/status` - MCP servers (already checked)
-  - LSP status via sync.data.lsp (likely SSE stream)
-  - Formatters via sync.data.formatter
-  - Plugins via config API
+- ✅ APIs exist for all status types (mostly via sync stream)
 
 **Data sources:**
-1. **MCP**: `/mcp/status` endpoint returns server map with status
-2. **LSP**: Part of sync stream (`sync.data.lsp`)
-3. **Formatters**: Part of sync stream (`sync.data.formatter`)
-4. **Plugins**: Config API or sync stream
+1. **MCP**: `GET /mcp.status` or `sync.data.mcp`
+2. **LSP**: `sync.data.lsp` (SSE stream)
+3. **Formatters**: `sync.data.formatter` (SSE stream)
+4. **Plugins**: `config.get('plugins')` or `sync.data.plugins`
 
 **Store Functions:**
 
-Reuse/extend existing stores:
-- `useMcpStore` - Already handling MCP status
-- Create or extend for LSP/formatters/plugins
+**Create `useSystemStatusStore`** (aggregate from multiple sources):
+```typescript
+interface SystemStatus {
+  mcp: {
+    servers: Map<string, McpServerStatus>;
+    lastRefresh: number;
+    isLoading: boolean;
+  };
+  lsp: {
+    servers: Map<string, LspServerStatus>;
+    lastRefresh: number;
+    isLoading: boolean;
+  };
+  formatters: {
+    items: Map<string, FormatterStatus>;
+    lastRefresh: number;
+    isLoading: boolean;
+  };
+  plugins: {
+    items: Map<string, PluginStatus>;
+    lastRefresh: number;
+    isLoading: boolean;
+  };
+}
 
-**Simplify**: Create a single `useSystemStatusStore` that aggregates from multiple sync data sources.
+interface SystemStatusStore {
+  status: SystemStatus;
+  
+  // Actions
+  refreshAll(): Promise<void>
+  refreshMcp(): Promise<void>
+  refreshLsp(): Promise<void>
+  refreshFormatters(): Promise<void>
+  refreshPlugins(): Promise<void>
+  getExportableStatus(): string  // Markdown for bug reports
+}
+```
+
+**Integration with sync streams:**
+```typescript
+// Subscribe to all sync data types
+sync.on('data.mcp', (data) => useSystemStatusStore.getState().updateMcp(data));
+sync.on('data.lsp', (data) => useSystemStatusStore.getState().updateLsp(data));
+sync.on('data.formatter', (data) => useSystemStatusStore.getState().updateFormatters(data));
+sync.on('data.plugins', (data) => useSystemStatusStore.getState().updatePlugins(data));
+```
 
 **File to create:**
 - `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useSystemStatusStore.ts`
 
-Or extend existing:
-- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useConfigStore.ts` (add system status section)
+**Alternative:** Could reuse/extend `useMcpStore` for MCP data
 
 ### Frontend Components
 
 **New Components to Create:**
 
-`StatusDialog.tsx` - Main status dialog with tabs:
-- Tabbed interface (MCP, LSP, Formatters, Plugins)
-- StatusCards for each item
-- Overall status summary
-- Refresh button
-- Copy status for bug reports
+1. **StatusDialog.tsx** - Main dialog:
+   - Reuse `Dialog` component (Radix UI)
+   - Reuse `Tabs` pattern from Settings pages
+   - Max width: `max-w-[600px]` (larger than standard dialog)
+   - Footer: Refresh, Copy, Close buttons
+   - Loading states (skeleton screens)
 
-`StatusCard.tsx` - Individual status item display:
-- Status icon (color-coded)
-- Name and version
-- Status text and details
-- Action buttons (Retry, Configure)
-- Expandable for more details
+2. **StatusTabs.tsx** - Tab navigation:
+   - Reuse `animated-tabs.tsx` pattern
+   - Tab badges showing status counts (e.g., "MCP ●●○")
+   - Color-coded badges (green/red/gray)
 
-`StatusSection.tsx` - Reusable section for each category:
-- Section header with count
-- List of StatusCards
-- Empty state when no items
-- Actions (Refresh all, Configure all)
+3. **StatusSection.tsx** - Reusable section for each category:
+   - Header: Title + count badge
+   - List: StatusCard components
+   - Empty state: "No MCP servers configured"
+   - Footer: "Refresh all" button
 
-`StatusTabs.tsx` - Tab navigation:
-- Tab buttons with status badges
-- Click to switch active tab
-- Show count summaries (e.g., "MCPs ●●○")
+4. **StatusCard.tsx** - Individual item display:
+   - Reuse `SettingsSidebarItem.tsx` pattern
+   - Status badge (color-coded chip)
+   - Name + version/info
+   - Action buttons (Retry, Configure) - context-dependent
+   - Expandable for error details
 
-`SystemStatusIndicator.tsx` - Small status summary (optional for header):
-- Mini status showing overall system health
-- Click to open full StatusDialog
+5. **StatusExportButton.tsx** - Copy for bug reports:
+   - Formats status as Markdown
+   - Toast: "Status copied to clipboard"
+   - Ready for GitHub issues
 
 **Existing Components to Modify:**
 
-`CommandPalette.tsx` - Add "View System Status" command:
-- New menu item
-- Opens StatusDialog
+1. **CommandPalette.tsx** - Add command:
+   ```typescript
+   <CommandGroup heading="System">
+     <CommandItem onSelect={handleOpenStatus}>
+       <RiDashboard3Line className="mr-2 h-4 w-4" />
+       <span>System Status</span>
+       <CommandShortcut>Ctrl+Shift+S</CommandShortcut>
+     </CommandItem>
+   </CommandGroup>
+   ```
 
-`StatusRow.tsx` - Add quick link to status view:
-- Add "System Status" link/icon in existing status row
-- Shows mini SystemStatusIndicator
+2. **StatusRow.tsx** - Add status link:
+   - Add "Status" link in status row (line 227)
+   - Click opens StatusDialog
+   - Could show mini indicator (optional)
 
 **Radix UI Primitives to Use:**
-- `Dialog`, `DialogContent` for main dialog
-- `Tabs`, `TabsList`, `TabsContent` for tabbed interface
-- `AlertDialog` for confirmations
-- `Tooltip`, `HoverCard` for details
+- `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogFooter`
+- `Tabs`, `TabsList`, `TabsContent` (from `@/components/ui/tabs`)
+- `ScrollArea` for section content (existing pattern)
 
 **File Locations:**
 ```
@@ -238,16 +270,15 @@ packages/ui/src/stores/
 
 packages/ui/src/components/status/  (new directory)
   ├── StatusDialog.tsx             (new)
-  ├── StatusCard.tsx               (new)
-  ├── StatusSection.tsx            (new)
   ├── StatusTabs.tsx               (new)
-  └── SystemStatusIndicator.tsx    (new)
-
-packages/ui/src/components/chat/
-  └── StatusRow.tsx                (modify - add status link)
+  ├── StatusSection.tsx            (new)
+  ├── StatusCard.tsx               (new)
+  ├── StatusExportButton.tsx       (new)
 
 packages/ui/src/components/ui/
-  └── CommandPalette.tsx            (modify - add status command)
+  ├── CommandPalette.tsx           (modify - add command)
+packages/ui/src/components/chat/
+  └── StatusRow.tsx                (modify - add status link)
 ```
 
 ### State Management
@@ -319,38 +350,66 @@ packages/ui/src/components/ui/
 - **Solution**: Filter based on permissions, show what's available
 
 **Export for bug reports:**
-- Users often need to share status when reporting issues
-- **Solution**: "Copy Status" button formats as markdown for GitHub issues
+- "Copy Status" formats as Markdown (GitHub-ready)
+- Includes all sections, versions, errors
+- Toast confirmation on copy
+
+---
+
+### Accessibility (A11y)
+
+**Keyboard navigation:**
+- `Ctrl+Shift+S`: Open status dialog (global)
+- `Esc`: Close dialog
+- `Tab` through sections, cards, buttons
+- Arrow keys within tab bar
+
+**ARIA attributes:**
+- Dialog: `role="dialog"`, `aria-modal="true"`, `aria-label="System Status"`
+- Tabs: `role="tablist"`, `role="tab"`, `aria-selected`
+- Cards: Proper heading structure (h3 for server name)
+- Status badges: `aria-label="Status: Connected"`
+
+**Focus management:**
+- Focus moves to dialog on open
+- Focus returns to trigger on close
+- Focus trap within dialog
+
+**Screen readers:**
+- Tab counts announced: "MCP tab, 3 servers, 2 connected"
+- Status changes announced: "filesystem-api connected"
+- Export announcement: "Status copied to clipboard"
 
 ---
 
 ## MVP vs Nice-to-Have
 
 ### MVP (Must-have)
-- Status dialog with all 4 sections
-- MCP status (connected/failed/disabled)
-- LSP status (connected/disconnected)
-- Formatters list
-- Plugins list
-- Status icons and descriptions
-- Refresh button
-- Access via Command Palette
+- ✅ Status dialog with all 4 sections
+- ✅ MCP status (connected/failed/disabled)
+- ✅ LSP status (connected/disconnected)
+- ✅ Formatters list
+- ✅ Plugins list
+- ✅ Status badges + descriptions
+- ✅ Refresh button (manual)
+- ✅ Command Palette access (Ctrl+Shift+S)
+- ✅ Export for bug reports (Copy Markdown)
+- ✅ Real-time updates (SSE)
 
 ### Nice-to-Have (Enhancements for Later)
-- Status history/timeline (when services went down)
-- Auto-refresh while dialog open
-- Real-time latency metrics (MCP/LSP)
-- Health scoring and alerts
-- Service restart actions (not just reconnect)
-- Detailed error logs per failed service
-- Dependency graph (MCPs that depend on others)
-- Configuration diff (what changed since last status)
-- Export status as JSON/Markdown for bug reports
-- Integration with monitoring/alerting services
-- System resource usage (CPU, memory) summary
+- Status history/timeline
+- Auto-refresh while open (configurable interval)
+- Latency metrics (MCP/LSP response times)
+- Health scoring + alerts
+- Service restart actions
+- Detailed error logs
+- Dependency visualization
+- Configuration diff
+- Integration with monitoring tools
+- System resource usage (CPU, memory)
 - Network connectivity check
-- Quick actions bulk operations (restart all MCPs)
-- Status notifications push to user (toast when service fails)
-- User preferences for which sections to show
-- Share status snapshot (generate URL)
-- Compare status across time/different environments
+- Bulk operations (restart all)
+- Push notifications (toast on failure)
+- User preferences (show/hide sections)
+- Share via URL
+- Status comparison across time

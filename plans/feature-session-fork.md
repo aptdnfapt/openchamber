@@ -17,16 +17,35 @@ Enables users to explore different solution paths without losing previous work. 
 
 ### UI Pattern
 
-**Modal/Dialog overlay**
+**Modal/Dialog overlay (reusing existing patterns)**
 
-Rationale: Forking is a deliberate action that requires selecting from the message history. A dialog provides:
-- Full list of messages to browse
-- Clear preview of what each message contains
-- Confirmation to prevent accidental forks
-- Space for metadata about what will be preserved
+Rationale: Forking is a deliberate action requiring message selection. Follow the pattern from `SessionDialogs.tsx`:
+- Desktop: Radix UI Dialog with max-w-[520px] (same as delete dialog)
+- Mobile: MobileOverlayPanel bottom sheet (same as SessionDialogs)
+- Reuse `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogFooter`
 
-Layout:
+Layout (desktop):
 ```
+┌─────────────────────────────────────┐
+│  Fork from Message        [✕]       │
+├─────────────────────────────────────┤
+│  Search messages...                 │
+│  May 12, 2:30 PM                    │
+│  ┌────────────────────────────┐     │
+│  │ "Fix the login bug..."     │     │
+│  │ assistant: 3 responses     │[✓]  │ ← Selectable card
+│  └────────────────────────────┘     │
+│                                     │
+│  ┌────────────────────────────┐     │
+│  │ "Refactor database..."     │     │
+│  │ May 10, 9:15 AM            │     │
+│  └────────────────────────────┘     │
+│                                     │
+│         [Cancel]  [Fork]           │
+└─────────────────────────────────────┘
+```
+
+Mobile: Full-height bottom sheet with swipe-to-close
 ┌─────────────────────────────────────┐
 │  Fork from Message        [✕]       │
 ├─────────────────────────────────────┤
@@ -53,21 +72,25 @@ Layout:
 
 ### User Workflow
 
-1. User is in a session and clicks "Fork" button (from header menu or Command Palette)
-2. Dialog opens showing all user messages in the session, newest first
-3. Each message shows:
-   - Content preview (first 100 chars)
-   - Timestamp
-   - Assistant response count (how many turns happened after)
-4. User can scroll through and click to select
-5. Selected message shows full preview
-6. User clicks "Fork" button
-7. New session is created automatically and opened:
-   - Starts fresh at the selected message
-   - Preserves all context up to that point
-   - Has same directory, worktree settings
-   - Title derived from selected message
-8. Confirmation toast appears: "Forked new session from message"
+**Trigger:** Fork button in header (next to session title) or Command Palette (Ctrl+Shift+F)
+
+1. User clicks "Fork" button → Dialog opens
+2. Shows all user messages (newest first) using reusable `SessionDialogs.tsx` patterns
+3. **Each message card displays:**
+   - Preview text (2 lines, truncation)
+   - Timestamp (human-readable: "2 hours ago")
+   - Response count badge (e.g., "3 responses")
+4. **User interaction:**
+   - Click to select (visual feedback: border highlight)
+   - Keyboard nav: ↑↓ to select, Enter to fork, Esc to cancel
+   - Search: Filter by message content in real-time
+5. **Confirmation:** Selected message highlighted with checkmark icon
+6. **Action:** Click "Fork" button (disabled until selection made)
+7. **Result:** 
+   - API call to `session.fork`
+   - Auto-switch to new session
+   - Toast notification: "Forked session from message"
+   - Title: First 40 chars + "… (forked)"
 
 ### Web Advantages
 
@@ -80,11 +103,26 @@ Layout:
 
 ### Mobile Considerations
 
-- Bottom sheet approach instead of centered modal
-- Full-height scrollable list
-- Larger touch targets for message selection
-- Swipe gestures for quick navigation
-- "Fork Now" button fixed at bottom for easy thumb access
+**Implementation:** Reuse `MobileOverlayPanel` pattern from `SessionDialogs.tsx` (lines 772-782)
+
+- **Bottom sheet:** Use existing `MobileOverlayPanel` component
+  - Full-height: `contentMaxHeightClassName="h-[calc(100vh-8rem)]"`
+  - Swipe-down to close (built into MobileOverlayPanel)
+  - Backdrop blur (built-in)
+  
+- **Touch targets:** 
+  - Message cards: min-height 72px (vs 48px desktop)
+  - Buttons: 44x44px minimum (WCAG 2.1 AA)
+  - Fork button: Fixed at bottom, full-width on mobile
+
+- **Gestures:**
+  - Swipe to dismiss (native MobileOverlayPanel)
+  - Pull-to-refresh message list
+
+- **Optimization:**
+  - Lazy load messages (virtual scroll if >50 messages)
+  - Debounced search (300ms)
+  - Throttle scroll events
 
 ---
 
@@ -102,64 +140,106 @@ API endpoint: `POST /session/fork`
 - Returns: New session object with pre-populated context
 
 **Store Functions:**
-- `useSessionStore` already has session management functions
-- Add: `forkSession(sessionID: string, messageID: string)` - calls backend, creates new session, switches to it
-- No new store file needed - extend existing `useSessionStore`
+- **Extend `useSessionStore`** (reuse existing pattern from session management)
+- Add state to existing session object structure:
+  ```typescript
+  // In SessionStore interface
+  forkDialogState: {
+    open: boolean;
+    sourceSessionId: string | null;
+    selectedMessageId: string | null;
+    isLoading: boolean;
+  }
+  ```
+- Add actions:
+  ```typescript
+  openForkDialog(sessionId: string): void
+  closeForkDialog(): void
+  selectForkMessage(messageId: string): void
+  forkFromMessage(sessionId: string, messageId: string): Promise<void>
+  ```
 
 **File to modify:**
-- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useSessionStore.ts`
+- `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useSessionStore.ts` (extend existing store)
 
 ### Frontend Components
 
 **New Components to Create:**
 
-`ForkSessionDialog.tsx` - Dialog that shows message history for forking:
-- Message list with previews
-- Search/filter input
-- Selection state management
-- Fork button action
-- Uses Radix Dialog
+1. `ForkSessionDialog.tsx` - Dialog with message list for forking:
+   - Reuse `SessionDialogs.tsx` pattern (770+ lines of proven dialog code)
+   - Implement mobile-responsive dialog (same conditional rendering as SessionDialogs)
+   - Message list with `Card` component (existing UI pattern)
+   - Search input (reuse from `CommandPalette.tsx` input pattern)
+   - Loading states (reuse skeleton patterns)
 
-`ForkSessionButton.tsx` - Toolbar/header button to trigger fork:
-- Button with fork icon
-- Tooltip "Fork from message"
-- Opens dialog on click
+2. `ForkSessionButton.tsx` - Button in header:
+   - Icon button with Remix icon (reuse Header button patterns)
+   - Tooltip wrapper (reuse `Tooltip` component from existing patterns)
+   - Disabled state when no session selected
 
 **Existing Components to Modify:**
 
-`ChatHeader.tsx` or `SessionSidebar.tsx` - Add fork button to action menu:
-- Add fork icon button to existing toolbar
-- Wire up to open fork dialog
+1. **Header.tsx** - Add fork button:
+   - Add to header next to session title/actions
+   - Follow existing `headerIconButtonClass` pattern (line 61)
+   - Reuse tooltip patterns from same file
 
-`CommandPalette.tsx` - Add "Fork Session" command:
-- New menu item in CommandDialog
-- Triggers fork dialog open
+2. **CommandPalette.tsx** - Add commands:
+   ```typescript
+   // Add to CommandGroup
+   <CommandItem onSelect={handleForkSession}>
+     <RiGitBranchLine className="mr-2 h-4 w-4" />
+     <span>Fork Session</span>
+     <CommandShortcut>Ctrl+Shift+F</CommandShortcut>
+   </CommandItem>
+   ```
 
 **Radix UI Primitives to Use:**
-- `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`
-- `DialogFooter`
+- Reuse from `@/components/ui/dialog`:
+  - `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`
+  - `DialogFooter`, `DialogClose`
+- `MobileOverlayPanel` for mobile (existing pattern)
 
 **File Locations:**
 ```
-packages/ui/src/components/chat/
-  ├── ForkSessionDialog.tsx        (new)
+packages/ui/src/components/session/
+  ├── ForkSessionDialog.tsx        (new - follows SessionDialogs pattern)
   ├── ForkSessionButton.tsx        (new)
-  ├── ChatHeader.tsx               (modify - add fork trigger)
+packages/ui/src/components/layout/
+  └── Header.tsx                   (modify - add fork button)
 packages/ui/src/components/ui/
-  ├── CommandPalette.tsx           (modify - add fork command)
+  └── CommandPalette.tsx           (modify - add fork command)
 ```
 
 ### State Management
 
 **Zustand Store:**
-- Existing: `useSessionStore`
-- Add state:
-  - `isForkDialogOpen: boolean`
-  - `forkSourceSessionId: string | null`
-- Add actions:
-  - `openForkDialog(sessionId: string)`
-  - `closeForkDialog()`
-  - `forkFromMessage(sessionId: string, messageId: string)`
+- **Extend existing `useSessionStore`** (follow existing patterns from line 64+)
+- Add to existing session state structure:
+  ```typescript
+  forkDialogState: {
+    open: boolean;
+    sourceSessionId: string | null;
+    selectedMessageId: string | null;
+    messages: Message[];  // Loaded for selection
+    isLoading: boolean;
+    error: string | null;
+  }
+  ```
+- Add computed selectors (follow pattern from lines 99+):
+  ```typescript
+  canFork: (sessionId) => boolean
+  selectedMessage: (sessionId) => Message | null
+  ```
+- Add actions (follow pattern from line 100+):
+  ```typescript
+  openForkDialog(sessionId: string): Promise<void>
+  closeForkDialog(): void
+  selectForkMessage(messageId: string): void
+  forkFromMessage(sessionId: string, messageId: string): Promise<void>
+  ```
+- **Persistence:** Not needed (temporary dialog state)
 
 ---
 
@@ -196,22 +276,46 @@ packages/ui/src/components/ui/
 
 ---
 
+### Accessibility (A11y)
+
+**ARIA attributes:**
+- `dialog`: `role="dialog"`, `aria-modal="true"`, `aria-labelledby="fork-dialog-title"`
+- List items: `role="option"`, `aria-selected={selected}`
+- Search: `aria-label="Search messages"`
+
+**Keyboard navigation:**
+- Global: `Esc` to close dialog (built into Radix Dialog)
+- List: `↑↓` to navigate messages, `Enter` to select
+- Buttons: `Space`/`Enter` to activate
+- Focus trap: Automatic (Radix Dialog)
+
+**Screen readers:**
+- Live region for status updates (loading, success, errors)
+- Announce: "Fork dialog opened" → "X messages available" → Selection made
+
+**Contrast & sizing:**
+- Follow existing `typography-*` classes (WCAG AA compliant)
+- Focus indicators: `focus-visible:ring-2` (existing pattern)
+
+---
+
 ## MVP vs Nice-to-Have
 
 ### MVP (Must-have)
-- Fork session from any user message
-- Dialog showing message list with previews
-- Search/filter messages
-- Auto-switch to new session after fork
-- Success/error toast notifications
+- ✅ Fork session from any user message
+- ✅ Dialog showing message list with previews
+- ✅ Search/filter messages
+- ✅ Auto-switch to new session after fork
+- ✅ Success/error toast notifications (Sonner)
+- ✅ Full keyboard navigation (A11y)
+- ✅ Mobile responsive (MobileOverlayPanel)
 
 ### Nice-to-Have (Enhancements for Later)
-- Visual indicator in timeline showing where fork points exist (show parent/child relationships)
-- Bulk fork from multiple messages as separate sessions
-- Fork with selection of which context items to include (e.g., "exclude tool outputs")
+- Visual fork lineage in session sidebar (parent/child relationships)
+- Bulk fork from multiple messages
+- Fork with context selection (include/exclude items)
 - Undo fork (delete newly created session)
-- View session lineage/family tree in sidebar
-- Fork from specific assistant tool calls (not just user messages)
-- Auto-rename fork suggestions based on message content analysis
+- Session family tree visualization
 - Fork to different directory/worktree
-- Save fork as template for reusability
+- Fork templates (save reusable patterns)
+- Auto-rename suggestions via content analysis

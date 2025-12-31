@@ -17,76 +17,77 @@ MCP servers extend AI capabilities with external tools like databases, APIs, fil
 
 ### UI Pattern
 
-**Sidebar panel + status bar indicator**
+**Sidebar tab + status indicator (reusing existing patterns)**
 
-Rationale:
-- MCP status is ongoing state that users should see at a glance
-- Management actions should be accessible but not intrusive
-- Sidebar panel provides dedicated space for server list and controls
-- Status bar indicator shows quick overview
+Rationale: MCP is secondary information → sidebar tab + status bar
+- **Status bar**: Quick overview (connected/failed counts)
+- **Sidebar tab**: Detailed management (like existing session sidebar tabs)
+- **Settings page alternative**: Like "Providers" section (existing pattern)
 
-Layout:
+Layout (desktop):
 ```
 ┌─────────────────────────────────────────┐
 │  Chat │ Diff │ Git │ Terminal  [Settings]│
 ├───────────────┬───────────────┬─────────┤
-│               │               │  MCP: 3  │ ← Status indicator
-│   Chat        │    Diff       │  ● ● ○  │   (connected/failed/disabled)
+│               │               │ MCP ●●○ │ ← Status indicator
+│   Chat        │    Diff       │ LSP ●   │   (color-coded badges)
 │   area        │    area       │─────────┤
 │               │               │         │
-│               │               │         │
 ├───────────────┴───────────────┤         │
-│  Session Sidebar              │  MCP Panel│ ← Sidebar drawer
-│  - Today                      │────────│   (tab or full panel)
-│    - Session 1                │        │
-│    - Session 2                │ MCPs   │
-│                                │────────│
-│                                │ ● filesystem-api │
-│                                │   Connected      │
-│                                │                 │
+│  Session Sidebar              │ MCPs    │ ← Tab content
+│  [Sessions│MCPs│Git]          │─────────│
+│  ─────────────────            │ ● filesystem-api │
+│  - Today                      │   Connected ✓   │ ← Status badge
+│    - Session 1                │   [Disable]     │
+│    - Session 2                │                 │
 │                                │ ○ database-connector │
-│                                │   Failed         │
+│                                │   Failed ✗       │
 │                                │   [Retry] [Config]│
 │                                │                 │
 │                                │ ○ weather-service │
-│                                │   Disabled       │
+│                                │   Disabled -     │
 │                                │   [Enable]       │
 └─────────────────────────────────────────┘
 ```
 
-Alternative: Dedicated Settings page section (like existing "Providers" section)
+**Implementation patterns:**
+- Reuse `SessionSidebar.tsx` tab structure
+- Reuse `StatusRow.tsx` status badge patterns
+- Reuse `SettingsSidebarItem.tsx` for server list items
 
 ### User Workflow
 
+**Trigger:** Status bar indicator, sidebar tab, or Command Palette (Ctrl+K → "MCP Status")
+
 **View MCP status:**
-1. User clicks MCP indicator in status bar, or opens Session Sidebar
-2. MCP panel slides in showing:
-   - List of all configured MCP servers
-   - Each server shows name, status icon, and description
-   - Actions displayed based on status:
-     - Connected: Show "Disable" button
-     - Failed: Show "Retry" and "Configure" buttons
-     - Disabled: Show "Enable" button
-3. User can see quick details for each server
+1. **Quick view:** Status bar shows summary (e.g., "MCP ●●○")
+   - Green ● = Connected
+   - Red ● = Failed  
+   - Gray ○ = Disabled
+   - Click to open sidebar tab
+2. **Full view:** Sidebar MCP tab shows:
+   - Grouped by status (Connected, Failed, Disabled)
+   - Each server card with name, status badge, description
+   - Action buttons based on status
+   - Error details on hover/click
 
-**Toggle MCP server:**
-1. User clicks Enable/Disable button on a server
-2. Show loading indicator while API call in progress
-3. Once complete, update status icon and button text
-4. Show toast: "Filesystem API enabled"
+**Toggle server (enable/disable):**
+1. Click toggle button on server card
+2. Loading spinner (button disabled)
+3. Toast notification: "Enabled filesystem-api" / "Disabled filesystem-api"
+4. Status badge updates immediately
+5. Auto-refresh status (SSE)
 
-**Configure problematic MCP:**
-1. User clicks "Configure" on a failed MCP
-2. Open MCP configuration dialog (or navigate to appropriate settings page)
-3. Edit server configuration (URL, credentials, etc.)
-4. Save and retry connection
-5. Status updates automatically
+**Fix failed server:**
+1. Failed server shows error badge + "Retry" button
+2. Click "Retry" → Loading → Success/Failure toast
+3. Hover/click for error details (full error message)
+4. Click "Configure" → Opens settings or file editor
 
-**MCP status from Command Palette:**
-1. User opens Command Palette (Ctrl+K)
-2. Types "MCP" or "status"
-3. Selects "View MCP Status"
-4. MCP panel opens with current status
+**Real-time updates:**
+- Status indicator updates automatically (SSE stream)
+- Failed servers trigger browser notification (optional)
+- Toast: "Connection restored - filesystem-api"
 
 ### Web Advantages
 
@@ -101,12 +102,32 @@ Alternative: Dedicated Settings page section (like existing "Providers" section)
 
 ### Mobile Considerations
 
-- MCP panel as bottom sheet modal instead of sidebar
-- Larger touch targets for enable/disable buttons
-- Swipe down to close panel
-- "View All MCPs" button in settings for full management
-- Status indicator in top bar as small icon badge
-- Pull-to-refresh to reload MCP status
+**Implementation:** Reuse existing mobile patterns
+
+- **MCP panel as bottom sheet:**
+  - Use `MobileOverlayPanel` (same as SessionDialogs)
+  - Full-height: `contentMaxHeightClassName="h-[calc(100vh-4rem)]"`
+  - Swipe down to dismiss (built-in)
+  - Fixed "Add MCP" button at top
+
+- **Server cards:**
+  - Larger touch targets: 48x48px for buttons
+  - Full-width cards for better visibility
+  - Status badges more visible (larger chips)
+
+- **Status indicator:**
+  - Top bar icon badge (smaller than desktop)
+  - Tap to open bottom sheet
+  - Badge color visible at small size
+
+- **Pull-to-refresh:**
+  - Server list supports pull-to-refresh (mobile pattern)
+  - Shows spinner, updates indicator
+
+- **Error handling:**
+  - Expandable cards (tap to expand)
+  - Error messages larger text
+  - "Copy" button for bug reports (easier on mobile)
 
 ---
 
@@ -117,82 +138,136 @@ Alternative: Dedicated Settings page section (like existing "Providers" section)
 **OpenCode API Check:**
 
 Result:
-- ✅ API exists: `mcp.status` → Implement UI primarily, may need configuration endpoints
+- ✅ API exists: `mcp.status` → Implement UI primarily
+- Status via sync stream: `sync.data.mcp` events
 
-API endpoint: `GET /mcp/status`
-- Returns: Map of MCP server names to status objects
-- Status includes: `connected | failed | disabled | needs_auth | needs_client_registration`
-- For failed: includes error message
-
-**Configuration:**
-- MCP configuration likely in config file (not API)
-- May need to open external config file for editing
-- **Solution**: Open file in editor or provide simple form for common settings
+API endpoints:
+- `GET /mcp/status` - Returns map of server statuses
+- Status types: `connected | failed | disabled | needs_auth | needs_client_registration`
+- Failed: includes error message
 
 **Store Functions:**
 
-Create `useMcpStore` (new store):
-- `mcpServers: Map<string, McpServer>` - Current status snapshot
-- `loading: boolean` - Loading state
-- `refreshMcpStatus()` - Fetch current status
-- `toggleMcp(name: string, enabled: boolean)` - Enable/disable
-- No MCP-specific API for toggle - likely uses config updates
+**Create `useMcpStore`** (new store, follow existing patterns):
+```typescript
+interface McpServer {
+  name: string;
+  status: McpServerStatus;
+  error?: string;
+  lastChecked: number;
+  latency?: number;  // Connection latency in ms
+}
+
+interface McpStore {
+  servers: Map<string, McpServer>;
+  isLoading: boolean;
+  lastRefresh: number | null;
+  
+  // Actions
+  fetchStatus(): Promise<void>
+  toggleServer(name: string, enabled: boolean): Promise<void>
+  retryServer(name: string): Promise<void>
+  configureServer(name: string): void  // Open config file
+  clearError(name: string): void
+}
+```
+
+**Integration with sync stream:**
+```typescript
+// Subscribe to SSE events in app initialization
+sync.on('data.mcp', (update) => {
+  useMcpStore.getState().handleMcpUpdate(update);
+});
+```
 
 **File to create:**
 - `/home/idc/proj/openchamber-wj/packages/ui/src/stores/useMcpStore.ts`
 
-**Alternative**: Use `useConfigStore` to manage MCP config settings directly
+**Alternative consideration:** Could extend `useConfigStore`, but separate store cleaner for async status
 
 ### Frontend Components
 
 **New Components to Create:**
 
-`McpStatusIndicator.tsx` - Status bar indicator showing MCP overview:
-- Shows count of connected/failed MCP servers
-- Color-coded: All green = good, any red = warning
-- Clickable to open MCP panel
-- Animated icon when loading
+1. **McpStatusIndicator.tsx** - Status bar badge:
+   - Reuse `StatusRow.tsx` pattern (lines 173-197)
+   - Clickable badge showing counts: "●●○"
+   - Color-coded (green/red/gray)
+   - Tooltip with full status summary
+   - Animation on status change
 
-`McpPanel.tsx` - Sidebar panel/drawer for MCP management:
-- List of MCP servers with status badges
-- Enable/disable toggle buttons
-- Configure/retry buttons based on status
-- Search/filter input
-- Refresh button
-- Grouped by status sections
+2. **McpPanel.tsx** - Sidebar tab content:
+   - Reuse `SessionSidebar.tsx` tab content patterns
+   - Search input (reuse `CommandPalette.tsx` input)
+   - Filter tabs: All | Connected | Failed | Disabled
+   - Server list with group headers
+   - Refresh button (loading state)
 
-`McpServerItem.tsx` - Individual MCP server display:
-- Server name and icon
-- Status badge with color
-- Description/status text
-- Action buttons (enabled based on status)
-- Error details shown on hover/click
+3. **McpServerItem.tsx** - Individual server card:
+   - Reuse `SettingsSidebarItem.tsx` pattern
+   - Status badge (color-coded chip)
+   - Name + description
+   - Action buttons based on status:
+     - Connected: Disable (Switch)
+     - Failed: Retry, Configure
+     - Disabled: Enable
+   - Expandable error details
 
-`McpStatusDialog.tsx` - Dedicated dialog for MCP status (alternative to panel):
-- Same content as McpPanel but in modal form
-- Used when triggered from Command Palette
+4. **McpErrorTooltip.tsx** - Error details on hover:
+   - Reuse `Tooltip` component (existing patterns)
+   - Full error message, timestamp
+   - "Copy error" button for bug reports
 
 **Existing Components to Modify:**
 
-`sessionSidebar.tsx` or create `McpSidebar.tsx` - Add MCP tab to sidebar:
-- New "MCP" tab in session sidebar
-- Shows McpPanel when selected
+1. **SessionSidebar.tsx** - Add MCP tab:
+   ```typescript
+   // Add tab configuration
+   { id: 'mcp', label: 'MCP', icon: RiPlug2Line, badge: mcpFailureCount }
+   ```
+   - Shows McpPanel when tab selected
+   - Badge showing failed count
 
-`StatusRow.tsx` - Add MCP indicator:
-- Show McpStatusIndicator in the existing status row
-- Position next to other status indicators (LSP, Git, etc.)
+2. **StatusRow.tsx** - Add MCP indicator:
+   - Add `McpStatusIndicator` to right side (line 227)
+   - Only show when MCP servers exist
+   - Click to open sidebar MCP tab
 
-`CommandPalette.tsx` - Add "MCP Status" command:
-- New command to open MCP panel/dialog
-- Shortcut suggestion: Ctrl+Shift+M
+3. **CommandPalette.tsx** - Add commands:
+   ```typescript
+   <CommandGroup heading="System">
+     <CommandItem onSelect={handleOpenMcpStatus}>
+       <RiPlug2Line className="mr-2 h-4 w-4" />
+       <span>MCP Status</span>
+       <CommandShortcut>Ctrl+Shift+M</CommandShortcut>
+     </CommandItem>
+   </CommandGroup>
+   ```
 
 **Radix UI Primitives to Use:**
-- `Dialog`, `DialogContent`, `DialogHeader` for dialog variant
-- `Switch` or `Toggle` for enable/disable
-- `Tooltip`, `HoverCard` for error details
-- `Select` for MCP filters/search
+- `Switch` (from `@/components/ui/switch`) for enable/disable
+- `Tooltip` (existing) for error details
+- `ScrollArea` for server list (existing pattern)
 
 **File Locations:**
+```
+packages/ui/src/stores/
+  └── useMcpStore.ts               (new)
+
+packages/ui/src/components/mcp/    (new directory - follows chat/ pattern)
+  ├── McpStatusIndicator.tsx        (new)
+  ├── McpPanel.tsx                 (new)
+  ├── McpServerItem.tsx            (new)
+  ├── McpErrorTooltip.tsx          (new)
+
+packages/ui/src/components/session/
+  └── SessionSidebar.tsx           (modify - add MCP tab)
+
+packages/ui/src/components/chat/
+  └── StatusRow.tsx                (modify - add indicator)
+
+packages/ui/src/components/ui/
+  └── CommandPalette.tsx           (modify - add commands)
 ```
 packages/ui/src/stores/
   ├── useMcpStore.ts               (new, for MCP state)
@@ -276,37 +351,67 @@ packages/ui/src/components/
 - **Solution**: Show "No MCP servers configured" with link to documentation
 
 **Security:**
-- MCP servers might handle sensitive data
-- **Solution**: Don't show credentials in UI, show mask or minimal info
+- MCP servers handle sensitive data
+- Never show credentials in UI
+- Mask sensitive fields, show minimal info
+- Confirm before major changes
 
 **Accessibility:**
-- Status icons must be colorblind-friendly
-- **Solution**: Use icons + color, not just color
+- Status icons: Use icons + color (colorblind-friendly)
+- Use `aria-label` for status badges
+- Server cards: Proper heading structure
+- Focus order: Status indicator → Server list → Actions
+
+---
+
+### Accessibility (A11y)
+
+**Status indicators:**
+- Color + icon (not just color)
+- `aria-label="3 MCP servers connected, 1 failed"`
+- Badge: `role="status"`, `aria-live="polite"`
+
+**Server cards:**
+- Heading: Server name
+- Status: `aria-label="Status: Connected"`
+- Buttons: Clear `aria-label` ("Enable filesystem-api")
+
+**Keyboard navigation:**
+- Tab through server list
+- Arrow keys within filter tabs
+- Enter/Space to toggle enable/disable
+- Escape to close panel
+
+**Screen readers:**
+- Live region for status changes
+- Announce: "Filesystem-api connected" on reconnect
+- Toast notifications announced
 
 ---
 
 ## MVP vs Nice-to-Have
 
 ### MVP (Must-have)
-- View list of MCP servers and their status
-- Status badges (connected, failed, disabled)
-- Enable/disable MCP servers (toggle)
-- Status indicator in chat area
-- MCP panel in session sidebar
-- Error messages for failed MCPs
-- Refresh/status update
+- ✅ View MCP servers + status list
+- ✅ Status badges (connected/failed/disabled)
+- ✅ Enable/disable toggles (Switch)
+- ✅ Status indicator in status bar
+- ✅ Sidebar tab (SessionSidebar pattern)
+- ✅ Error messages + retry
+- ✅ Real-time updates (SSE)
+- ✅ Full keyboard navigation (A11y)
 
 ### Nice-to-Have (Enhancements for Later)
-- Real-time connection status via SSE animations
-- Detailed MCP metrics (request count, latency)
+- Real-time connection animations
+- Detailed metrics (request count, latency)
 - MCP request logs viewer
-- Group MCPs by provider/use case
-- Search/filter MCP servers
-- Batch enable/disable multiple MCPs
-- MCP configuration wizard for first-time setup
-- Visual graphs showing MCP usage over time
-- MCP marketplace/discovery (find new MCPs to install)
-- MCP custom configuration editor (with syntax highlighting)
-- MCP server health monitoring and alerts
-- MCP rate limiting controls
-- MCP permissions management (which tools each MCP can access)
+- Group by provider/use case
+- Search/filter servers
+- Batch operations (enable/disable multiple)
+- Configuration wizard
+- Usage graphs
+- MCP marketplace/discovery
+- Custom config editor
+- Health monitoring + alerts
+- Rate limiting controls
+- Permissions management
