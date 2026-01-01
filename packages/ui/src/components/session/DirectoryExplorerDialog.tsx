@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DirectoryTree } from './DirectoryTree';
+import { DirectorySearchInput } from './DirectorySearchInput';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { useFileSystemAccess } from '@/hooks/useFileSystemAccess';
 import { cn, formatPathForDisplay } from '@/lib/utils';
@@ -38,6 +39,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
   const [pathInputValue, setPathInputValue] = React.useState('');
   const [hasUserSelection, setHasUserSelection] = React.useState(false);
   const [isConfirming, setIsConfirming] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
   const [showHidden, setShowHidden] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') {
       return false;
@@ -67,6 +69,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     if (open) {
       setHasUserSelection(false);
       setIsConfirming(false);
+      setSearchQuery('');
       // Initialize with current directory
       const initialPath = currentDirectory || homeDirectory || '';
       setPendingPath(initialPath);
@@ -192,6 +195,13 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     }
   }, [handleConfirm]);
 
+  const handleSearchSelect = React.useCallback((path: string) => {
+    setPendingPath(path);
+    setHasUserSelection(true);
+    setPathInputValue(formatPath(path));
+    setSearchQuery('');
+  }, [formatPath]);
+
   const toggleShowHidden = React.useCallback(() => {
     setShowHidden(prev => !prev);
   }, []);
@@ -205,6 +215,16 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
         Choose the working directory for sessions and OpenCode operations.
       </DialogDescription>
     </DialogHeader>
+  );
+
+  const searchInputSection = (
+    <DirectorySearchInput
+      query={searchQuery}
+      onQueryChange={setSearchQuery}
+      onSelect={handleSearchSelect}
+      homeDirectory={homeDirectory}
+      className="flex-shrink-0"
+    />
   );
 
   const pathInputSection = (
@@ -255,6 +275,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
   // Mobile: use flex layout where tree takes remaining space
   const mobileContent = (
     <div className="flex flex-col gap-3 h-full">
+      {searchInputSection}
       <div className="flex-shrink-0">{pathInputSection}</div>
       <div className="flex-shrink-0 flex items-center justify-end">
         {showHiddenToggle}
@@ -281,6 +302,7 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
       outerClassName="flex-1 min-h-0 overflow-hidden"
       className="directory-dialog-body sm:px-0 sm:pb-0 flex flex-col gap-3"
     >
+      {searchInputSection}
       {pathInputSection}
       <div className="flex items-center justify-end">
         {showHiddenToggle}
