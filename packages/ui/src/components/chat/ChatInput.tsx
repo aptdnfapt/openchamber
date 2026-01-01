@@ -12,6 +12,7 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useUIStore } from '@/stores/useUIStore';
 import { useMessageQueueStore, type QueuedMessage } from '@/stores/messageQueueStore';
+import { usePromptStashStore } from '@/stores/usePromptStashStore';
 import type { AttachedFile, EditPermissionMode } from '@/stores/types/sessionTypes';
 import { getEditModeColors } from '@/lib/permissions/editModeColors';
 import { AttachedFilesList } from './FileAttachment';
@@ -36,6 +37,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { StashButton, StashPanel } from './stash';
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8;
 const EMPTY_QUEUE: QueuedMessage[] = [];
@@ -57,6 +59,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
     const [showAgentAutocomplete, setShowAgentAutocomplete] = React.useState(false);
     const [agentQuery, setAgentQuery] = React.useState('');
     const [textareaSize, setTextareaSize] = React.useState<{ height: number; maxHeight: number } | null>(null);
+    const [showStashPanel, setShowStashPanel] = React.useState(false);
+    const stashButtonRef = React.useRef<HTMLButtonElement>(null);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
     const dropZoneRef = React.useRef<HTMLDivElement>(null);
     const mentionRef = React.useRef<FileMentionHandle>(null);
@@ -83,6 +87,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
     const { currentProviderId, currentModelId, currentAgentName, setAgent, getVisibleAgents } = useConfigStore();
     const agents = getVisibleAgents();
     const { isMobile } = useUIStore();
+    const savePrompt = usePromptStashStore((state) => state.savePrompt);
     const { working } = useAssistantStatus();
     const [showAbortStatus, setShowAbortStatus] = React.useState(false);
     const abortTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -482,6 +487,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
         if (e.key === 'Tab' && !showCommandAutocomplete && !showFileMention) {
             e.preventDefault();
             cycleAgent();
+            return;
+        }
+
+        // Handle Ctrl+S: Save to stash
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            if (message.trim()) {
+                savePrompt(message.trim());
+                toast.success('Prompt saved to stash');
+            }
+            return;
+        }
+
+        // Handle Ctrl+Shift+S: Toggle stash panel
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+            e.preventDefault();
+            toggleStashPanel();
             return;
         }
 
@@ -980,6 +1002,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
         event.target.value = '';
     }, [attachFiles]);
 
+    // Prompt stash handlers
+    const handleLoadStashedPrompt = React.useCallback((text: string) => {
+        setMessage(text);
+        setShowStashPanel(false);
+        setTimeout(() => {
+            textareaRef.current?.focus();
+        }, 0);
+    }, [textareaRef]);
+
+    const toggleStashPanel = React.useCallback(() => {
+        setShowStashPanel((prev) => !prev);
+    }, []);
+
     const footerGapClass = 'gap-x-1.5 gap-y-0';
     const isVSCode = isVSCodeRuntime();
     const footerPaddingClass = isMobile ? 'px-1.5 py-1.5' : (isVSCode ? 'px-1.5 py-1' : 'px-2.5 py-1.5');
@@ -1129,6 +1164,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
     const attachmentsControls = (
         <>
             {attachmentMenu}
+            <div className="relative">
+                <StashButton
+                    ref={stashButtonRef}
+                    onClick={toggleStashPanel}
+                />
+                {showStashPanel && (
+                    <div className="absolute bottom-full right-0 mb-2 z-50">
+                        <StashPanel
+                            onLoadPrompt={handleLoadStashedPrompt}
+                            currentInput={message}
+                            className="shadow-xl"
+                        />
+                    </div>
+                )}
+            </div>
             {settingsButton}
         </>
     );

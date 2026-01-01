@@ -12,9 +12,10 @@ import {
 import { useUIStore } from '@/stores/useUIStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
+import { usePromptStashStore } from '@/stores/usePromptStashStore';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useDeviceInfo } from '@/lib/device';
-import { RiAddLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
+import { RiAddLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
 import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
 
 export const CommandPalette: React.FC = () => {
@@ -33,7 +34,13 @@ export const CommandPalette: React.FC = () => {
     openNewSessionDraft,
     setCurrentSession,
     getSessionsByDirectory,
+    pendingInputText,
+    setPendingInputText,
   } = useSessionStore();
+
+  const prompts = usePromptStashStore((state) => state.prompts);
+  const savePrompt = usePromptStashStore((state) => state.savePrompt);
+  const loadPrompt = usePromptStashStore((state) => state.loadPrompt);
 
   const { currentDirectory } = useDirectoryStore();
   const { themeMode, setThemeMode } = useThemeSystem();
@@ -106,6 +113,25 @@ export const CommandPalette: React.FC = () => {
     handleClose();
   };
 
+  const handleSaveToStash = () => {
+    const text = pendingInputText?.trim();
+    if (text) {
+      savePrompt(text);
+      handleClose();
+    }
+  };
+
+  const handleLoadPrompt = (id: string) => {
+    const text = loadPrompt(id);
+    if (text) {
+      setPendingInputText(text);
+      handleClose();
+      // Focus on input after loading
+      // Note: This would require ref to ChatInput textarea, which isn't available here
+      // The store change will trigger the update automatically
+    }
+  };
+
   const directorySessions = getSessionsByDirectory(currentDirectory ?? '');
   const currentSessions = React.useMemo(() => {
     return directorySessions.slice(0, 5);
@@ -162,6 +188,36 @@ export const CommandPalette: React.FC = () => {
             <RiRestartLine className="mr-2 h-4 w-4" />
             <span>Reload OpenCode Configuration</span>
           </CommandItem>
+        </CommandGroup>
+
+        <CommandSeparator />
+
+        <CommandGroup heading="Prompt Stash">
+          <CommandItem onSelect={handleSaveToStash} disabled={!pendingInputText?.trim()}>
+            <RiStarSLine className="mr-2 h-4 w-4" />
+            <span>Save Current Input</span>
+            <CommandShortcut>Ctrl + S</CommandShortcut>
+          </CommandItem>
+          {prompts.length > 0 && (
+            <>
+              <CommandSeparator />
+              {/* Show up to 5 recent prompts */}
+              {prompts.slice(0, 5).map((prompt) => (
+                <CommandItem
+                  key={prompt.id}
+                  onSelect={() => handleLoadPrompt(prompt.id)}
+                >
+                  <RiStarLine className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span className="truncate flex-1">
+                    {prompt.title}
+                  </span>
+                  <span className="typography-micro text-muted-foreground/60 ml-2">
+                    {new Date(prompt.timestamp).toLocaleDateString()}
+                  </span>
+                </CommandItem>
+              ))}
+            </>
+          )}
         </CommandGroup>
 
         <CommandSeparator />
