@@ -19,6 +19,7 @@ import {
   RiCheckboxBlankLine,
   RiCheckboxLine,
 } from '@remixicon/react';
+import type { ProjectFileSearchHit } from '@/lib/opencode/client';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { useDeviceInfo } from '@/lib/device';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
@@ -195,10 +196,10 @@ export const DirectoryExplorerDialog: React.FC<DirectoryExplorerDialogProps> = (
     }
   }, [handleConfirm]);
 
-  const handleSearchSelect = React.useCallback((path: string) => {
-    setPendingPath(path);
+  const handleSearchSelect = React.useCallback((result: ProjectFileSearchHit) => {
+    setPendingPath(result.path);
     setHasUserSelection(true);
-    setPathInputValue(formatPath(path));
+    setPathInputValue(formatPath(result.path));
     setSearchQuery('');
   }, [formatPath]);
 

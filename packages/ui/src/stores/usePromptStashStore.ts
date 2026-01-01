@@ -25,13 +25,13 @@ export interface StashedPrompt {
 
 interface PromptStashState {
   prompts: StashedPrompt[];
+  _getPrompts: () => StashedPrompt[];
 }
 
 interface PromptStashActions {
   savePrompt: (text: string, metadata?: Partial<StashedPrompt>) => void;
   loadPrompt: (id: string) => string | null;
   deletePrompt: (id: string) => void;
-  searchPrompts: (query: string) => StashedPrompt[];
   updatePrompt: (id: string, updates: Partial<StashedPrompt>) => void;
   clearAll: () => void;
 }
@@ -44,6 +44,15 @@ export const usePromptStashStore = create<PromptStashState & PromptStashActions>
   persist(
     (set, get) => ({
       prompts: [],
+
+      // Helper to safely get prompts
+      _getPrompts: () => {
+        try {
+          return get().prompts || [];
+        } catch {
+          return [];
+        }
+      },
 
       savePrompt: (text: string, metadata?: Partial<StashedPrompt>) => {
         const trimmedText = text.trim();
@@ -95,28 +104,6 @@ export const usePromptStashStore = create<PromptStashState & PromptStashActions>
         set((state) => ({
           prompts: state.prompts.filter((p) => p.id !== id),
         }));
-      },
-
-      searchPrompts: (query: string) => {
-        // Early return if no query or empty query
-        if (!query || query.trim().length === 0) {
-          return get().prompts;
-        }
-        
-        try {
-          const lowerQuery = query.toLowerCase().trim();
-          const prompts = get().prompts;
-          
-          return prompts.filter((p) =>
-            p.text.toLowerCase().includes(lowerQuery) ||
-            p.title.toLowerCase().includes(lowerQuery) ||
-            p.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
-          );
-        } catch (error) {
-          // If get() is not available or any error, return all prompts
-          console.error('Error in searchPrompts:', error);
-          return get().prompts;
-        }
       },
 
       updatePrompt: (id: string, updates: Partial<StashedPrompt>) => {

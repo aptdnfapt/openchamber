@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
-import { opencodeClient } from '@/lib/opencode/client';
+import { opencodeClient, type ProjectFileSearchHit } from '@/lib/opencode/client';
 
 export const useDirectorySearch = () => {
-  const [results, setResults] = useState<string[]>([]);
+  const [results, setResults] = useState<ProjectFileSearchHit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentQuery, setCurrentQuery] = useState('');
@@ -17,18 +17,17 @@ export const useDirectorySearch = () => {
     const trimmedQuery = query.trim();
     setCurrentQuery(trimmedQuery);
 
-      try {
-        setIsLoading(true);
-        setError(null);
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        // Use the SDK's searchFiles method with directory parameter
-        const results = await opencodeClient.searchFiles(trimmedQuery, {
-          type: 'directory',
-          limit: 20,
-        });
+      // Use the SDK's searchFiles method with directory parameter
+      const results = await opencodeClient.searchFiles(trimmedQuery, {
+        directory: null,
+        limit: 20,
+      });
 
-        setResults(results);
-      }
+      setResults(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);

@@ -24,7 +24,7 @@ export const StashPanel: React.FC<StashPanelProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const { prompts, savePrompt, loadPrompt, deletePrompt, searchPrompts } = usePromptStashStore();
+  const { prompts, savePrompt, loadPrompt, deletePrompt } = usePromptStashStore();
 
   // Focus search input when panel opens
   useEffect(() => {
@@ -34,7 +34,18 @@ export const StashPanel: React.FC<StashPanelProps> = ({
   }, []);
 
   // Filter prompts based on search query
-  const filteredPrompts = searchQuery ? searchPrompts(searchQuery) : prompts;
+  const filteredPrompts = React.useMemo(() => {
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      return prompts;
+    }
+
+    const lowerQuery = searchQuery.toLowerCase().trim();
+    return prompts.filter((p) =>
+      p.text.toLowerCase().includes(lowerQuery) ||
+      p.title.toLowerCase().includes(lowerQuery) ||
+      p.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
+    );
+  }, [searchQuery, prompts]);
 
   // Handle save current input
   const handleSaveCurrent = async () => {

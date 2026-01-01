@@ -4,11 +4,12 @@ import { RiSearchLine, RiLoader4Line } from '@remixicon/react';
 import { DirectorySearchResults } from './DirectorySearchResults';
 import { useDirectorySearch } from '@/hooks/useDirectorySearch';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import type { ProjectFileSearchHit } from '@/lib/opencode/client';
 
 interface DirectorySearchInputProps {
   query: string;
   onQueryChange: (query: string) => void;
-  onSelect: (path: string) => void;
+  onSelect: (result: ProjectFileSearchHit) => void;
   homeDirectory: string | null;
   className?: string;
 }

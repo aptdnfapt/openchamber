@@ -1,9 +1,10 @@
 import React from 'react';
 import { cn, formatPathForDisplay } from '@/lib/utils';
 import { RiFolderLine } from '@remixicon/react';
+import type { ProjectFileSearchHit } from '@/lib/opencode/client';
 
 interface DirectorySearchResultsProps {
-  results: string[];
+  results: ProjectFileSearchHit[];
   selectedIndex: number;
   onSelect: (index: number) => void;
   onHover: (index: number) => void;
@@ -56,8 +57,8 @@ export const DirectorySearchResults: React.FC<DirectorySearchResultsProps> = ({
   return (
     <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-lg shadow-lg max-h-[300px] overflow-y-auto">
       <ul className="py-1" role="listbox" aria-label="Search results">
-        {results.map((path, index) => (
-          <li key={path}>
+        {results.map((result, index) => (
+          <li key={result.path}>
             <button
               type="button"
               role="option"
@@ -71,7 +72,7 @@ export const DirectorySearchResults: React.FC<DirectorySearchResultsProps> = ({
             >
               <RiFolderLine className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <span className="typography-meta font-mono truncate">
-                {formatPathForDisplay(path, homeDirectory)}
+                {formatPathForDisplay(result.path, homeDirectory)}
               </span>
             </button>
           </li>
