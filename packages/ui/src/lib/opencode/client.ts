@@ -341,6 +341,66 @@ class OpencodeService {
     return response.data;
   }
 
+  async getSessionChildren(sessionId: string): Promise<Session[]> {
+    try {
+      const base = this.baseUrl.replace(/\/$/, "");
+      const url = new URL(`${base}/session/${encodeURIComponent(sessionId)}/children`);
+
+      if (this.currentDirectory && this.currentDirectory.length > 0) {
+        url.searchParams.set("directory", this.currentDirectory);
+      }
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        console.warn("Failed to fetch children for session:", sessionId);
+        return [];
+      }
+
+      const data = await response.json().catch(() => null);
+      if (!data || !Array.isArray(data)) {
+        return [];
+      }
+
+      return data as Session[];
+    } catch (error) {
+      console.warn("Failed to fetch children for session:", sessionId, error);
+      return [];
+    }
+  }
+
+  async getSessionParent(sessionId: string): Promise<Session | null> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session.parentID) {
+        return null;
+      }
+      return await this.getSession(session.parentID);
+    } catch (error) {
+      console.warn("Failed to fetch parent for session:", sessionId, error);
+      return null;
+    }
+  }
+
+  async getSessionSiblings(sessionId: string): Promise<Session[]> {
+    try {
+      const session = await this.getSession(sessionId);
+      if (!session.parentID) {
+        return [];
+      }
+      const children = await this.getSessionChildren(session.parentID);
+      return children.filter(s => s.id !== sessionId);
+    } catch (error) {
+      console.warn("Failed to fetch siblings for session:", sessionId, error);
+      return [];
+    }
+  }
+
   async getSessionMessages(id: string): Promise<{ info: Message; parts: Part[] }[]> {
     const response = await this.client.session.messages({
       path: { id },

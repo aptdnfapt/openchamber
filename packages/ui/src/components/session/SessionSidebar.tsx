@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
+import { RelatedSessionsSection } from '@/components/session/navigation';
 import {
   RiAddLine,
   RiArrowDownSLine,
@@ -1148,6 +1149,13 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           ))
         )}
       </ScrollableOverlay>
+
+      {}
+      {!mobileVariant && (
+        <div className="border-t border-border/50">
+          <RelatedSessionsSection />
+        </div>
+      )}
     </div>
   );
 };

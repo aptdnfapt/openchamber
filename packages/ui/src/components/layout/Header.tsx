@@ -11,6 +11,7 @@ import { useUpdateStore } from '@/stores/useUpdateStore';
 import { useConfigStore } from '@/stores/useConfigStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { ContextUsageDisplay } from '@/components/ui/ContextUsageDisplay';
+import { SessionNavigationHeader } from '@/components/session/navigation';
 import { useDeviceInfo } from '@/lib/device';
 import { cn } from '@/lib/utils';
 import { useDiffFileCount } from '@/components/views/DiffView';
@@ -391,6 +392,11 @@ export const Header: React.FC = () => {
       {}
       <div className="flex h-full items-center">
         {tabs.map((tab, index) => renderTab(tab, index === tabs.length - 1))}
+      </div>
+
+      {}
+      <div className="flex items-center gap-2">
+        <SessionNavigationHeader />
       </div>
 
       {}

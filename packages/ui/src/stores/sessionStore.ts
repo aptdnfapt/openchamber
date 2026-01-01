@@ -17,6 +17,15 @@ interface SessionState {
     webUICreatedSessions: Set<string>;
     worktreeMetadata: Map<string, WorktreeMetadata>;
     availableWorktrees: WorktreeMetadata[];
+    sessionHierarchy: Map<string, {
+        parentId: string | null;
+        parentSession: Session | null;
+        siblingIds: string[];
+        siblingSessions: Session[];
+        siblingIndex: number;
+        isLoading: boolean;
+        loadedAt: number;
+    }>;
 }
 
 interface SessionActions {
@@ -38,6 +47,10 @@ interface SessionActions {
     getWorktreeMetadata: (sessionId: string) => WorktreeMetadata | undefined;
     setSessionDirectory: (sessionId: string, directory: string | null) => void;
     updateSession: (session: Session) => void;
+    fetchSessionHierarchy: (sessionId: string) => Promise<void>;
+    navigateToParent: () => Promise<void>;
+    navigateToSibling: (direction: 'next' | 'prev') => Promise<void>;
+    navigateToSession: (sessionId: string) => Promise<void>;
 }
 
 type SessionStore = SessionState & SessionActions;
@@ -245,6 +258,7 @@ export const useSessionStore = create<SessionStore>()(
                 webUICreatedSessions: new Set(),
                 worktreeMetadata: new Map(),
                 availableWorktrees: [],
+                sessionHierarchy: new Map(),
 
                 loadSessions: async () => {
                     set({ isLoading: true, error: null });
@@ -1024,6 +1038,120 @@ export const useSessionStore = create<SessionStore>()(
                     set((state) => ({
                         sessions: state.sessions.map((s) => (s.id === session.id ? session : s)),
                     }));
+                },
+
+                fetchSessionHierarchy: async (sessionId: string) => {
+                    try {
+                        set((state) => {
+                            const next = new Map(state.sessionHierarchy);
+                            const current = next.get(sessionId);
+                            next.set(sessionId, {
+                                parentId: current?.parentId ?? null,
+                                parentSession: current?.parentSession ?? null,
+                                siblingIds: current?.siblingIds ?? [],
+                                siblingSessions: current?.siblingSessions ?? [],
+                                siblingIndex: current?.siblingIndex ?? 0,
+                                isLoading: true,
+                                loadedAt: current?.loadedAt ?? Date.now(),
+                            });
+                            return { sessionHierarchy: next };
+                        });
+
+                        const [parentSession, siblingSessions] = await Promise.all([
+                            opencodeClient.getSessionParent(sessionId),
+                            opencodeClient.getSessionSiblings(sessionId),
+                        ]);
+
+                        const currentSession = get().sessions.find(s => s.id === sessionId);
+                        const parentId = currentSession ? (currentSession as { parentID?: string }).parentID ?? null : null;
+
+                        set((state) => {
+                            const next = new Map(state.sessionHierarchy);
+                            const siblingIds = siblingSessions.map(s => s.id);
+                            const siblingIndex = siblingIds.indexOf(sessionId);
+                            next.set(sessionId, {
+                                parentId,
+                                parentSession,
+                                siblingIds,
+                                siblingSessions,
+                                siblingIndex: siblingIndex === -1 ? 0 : siblingIndex,
+                                isLoading: false,
+                                loadedAt: Date.now(),
+                            });
+                            return { sessionHierarchy: next };
+                        });
+                    } catch (error) {
+                        console.error("Failed to fetch session hierarchy:", error);
+                        set((state) => {
+                            const next = new Map(state.sessionHierarchy);
+                            next.set(sessionId, {
+                                parentId: null,
+                                parentSession: null,
+                                siblingIds: [],
+                                siblingSessions: [],
+                                siblingIndex: 0,
+                                isLoading: false,
+                                loadedAt: Date.now(),
+                            });
+                            return { sessionHierarchy: next };
+                        });
+                    }
+                },
+
+                navigateToParent: async () => {
+                    const state = get();
+                    const sessionId = state.currentSessionId;
+                    if (!sessionId) return;
+
+                    const hierarchy = state.sessionHierarchy.get(sessionId);
+                    const parentSession = hierarchy?.parentSession;
+
+                    if (!parentSession) {
+                        return;
+                    }
+
+                    await state.setCurrentSession(parentSession.id);
+                },
+
+                navigateToSibling: async (direction: 'next' | 'prev') => {
+                    const state = get();
+                    const sessionId = state.currentSessionId;
+                    if (!sessionId) return;
+
+                    const hierarchy = state.sessionHierarchy.get(sessionId);
+                    if (!hierarchy || hierarchy.siblingSessions.length === 0) {
+                        return;
+                    }
+
+                    const currentIndex = hierarchy.siblingIndex;
+                    let targetIndex: number;
+
+                    if (direction === 'next') {
+                        targetIndex = currentIndex + 1;
+                    } else {
+                        targetIndex = currentIndex - 1;
+                    }
+
+                    if (targetIndex < 0 || targetIndex >= hierarchy.siblingSessions.length) {
+                        return;
+                    }
+
+                    const targetSession = hierarchy.siblingSessions[targetIndex];
+                    if (!targetSession) {
+                        return;
+                    }
+
+                    await state.setCurrentSession(targetSession.id);
+                },
+
+                navigateToSession: async (targetSessionId: string) => {
+                    const state = get();
+                    const session = state.sessions.find(s => s.id === targetSessionId);
+                    if (!session) {
+                        return;
+                    }
+
+                    await state.setCurrentSession(targetSessionId);
                 },
             }),
             {

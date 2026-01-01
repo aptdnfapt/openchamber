@@ -111,6 +111,16 @@ export interface SessionStore {
 
     newSessionDraft: NewSessionDraftState;
 
+    sessionHierarchy: Map<string, {
+        parentId: string | null;
+        parentSession: Session | null;
+        siblingIds: string[];
+        siblingSessions: Session[];
+        siblingIndex: number;
+        isLoading: boolean;
+        loadedAt: number;
+    }>;
+
     getSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => EditPermissionMode;
     toggleSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => void;
     setSessionAgentEditMode: (sessionId: string, agentName: string | undefined, mode: EditPermissionMode, defaultMode?: EditPermissionMode) => void;
@@ -194,4 +204,9 @@ export interface SessionStore {
      revertToMessage: (sessionId: string, messageId: string) => Promise<void>;
      setPendingInputText: (text: string | null) => void;
      consumePendingInputText: () => string | null;
+
+     fetchSessionHierarchy: (sessionId: string) => Promise<void>;
+     navigateToParent: () => Promise<void>;
+     navigateToSibling: (direction: 'next' | 'prev') => Promise<void>;
+     navigateToSession: (sessionId: string) => Promise<void>;
  }
