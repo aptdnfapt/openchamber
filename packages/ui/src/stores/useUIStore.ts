@@ -48,6 +48,14 @@ interface UIStore {
   diffFileLayout: Record<string, 'inline' | 'side-by-side'>;
   diffWrapLines: boolean;
 
+  // Display settings
+  showTimestamps: boolean;
+  showUsernames: boolean;
+  showToolDetails: boolean;
+  codeConcealment: boolean;
+  userMessageMarkdown: boolean;
+  animationsEnabled: boolean;
+
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -84,6 +92,15 @@ interface UIStore {
   setDiffLayoutPreference: (mode: 'dynamic' | 'inline' | 'side-by-side') => void;
   setDiffFileLayout: (filePath: string, mode: 'inline' | 'side-by-side') => void;
   setDiffWrapLines: (wrap: boolean) => void;
+
+  // Display setting setters
+  setShowTimestamps: (value: boolean) => void;
+  setShowUsernames: (value: boolean) => void;
+  setShowToolDetails: (value: boolean) => void;
+  setCodeConcealment: (value: boolean) => void;
+  setUserMessageMarkdown: (value: boolean) => void;
+  setAnimationsEnabled: (value: boolean) => void;
+  resetDisplaySettings: () => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -119,6 +136,14 @@ export const useUIStore = create<UIStore>()(
         diffLayoutPreference: 'dynamic',
         diffFileLayout: {},
         diffWrapLines: false,
+
+        // Display settings defaults
+        showTimestamps: true,
+        showUsernames: true,
+        showToolDetails: false,
+        codeConcealment: false,
+        userMessageMarkdown: true,
+        animationsEnabled: true,
 
         setTheme: (theme) => {
           set({ theme });
@@ -336,6 +361,42 @@ export const useUIStore = create<UIStore>()(
           set({ diffWrapLines: wrap });
         },
 
+        // Display setting setters
+        setShowTimestamps: (value) => {
+          set({ showTimestamps: value });
+        },
+
+        setShowUsernames: (value) => {
+          set({ showUsernames: value });
+        },
+
+        setShowToolDetails: (value) => {
+          set({ showToolDetails: value });
+        },
+
+        setCodeConcealment: (value) => {
+          set({ codeConcealment: value });
+        },
+
+        setUserMessageMarkdown: (value) => {
+          set({ userMessageMarkdown: value });
+        },
+
+        setAnimationsEnabled: (value) => {
+          set({ animationsEnabled: value });
+        },
+
+        resetDisplaySettings: () => {
+          set({
+            showTimestamps: true,
+            showUsernames: true,
+            showToolDetails: false,
+            codeConcealment: false,
+            userMessageMarkdown: true,
+            animationsEnabled: true,
+          });
+        },
+
         toggleFavoriteModel: (providerID, modelID) => {
           set((state) => {
             const exists = state.favoriteModels.some(
@@ -431,6 +492,13 @@ export const useUIStore = create<UIStore>()(
           recentModels: state.recentModels,
           diffLayoutPreference: state.diffLayoutPreference,
           diffWrapLines: state.diffWrapLines,
+          // Display settings
+          showTimestamps: state.showTimestamps,
+          showUsernames: state.showUsernames,
+          showToolDetails: state.showToolDetails,
+          codeConcealment: state.codeConcealment,
+          userMessageMarkdown: state.userMessageMarkdown,
+          animationsEnabled: state.animationsEnabled,
         })
       }
     ),

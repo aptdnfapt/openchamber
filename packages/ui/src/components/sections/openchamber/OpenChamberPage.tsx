@@ -3,6 +3,7 @@ import { OpenChamberVisualSettings } from './OpenChamberVisualSettings';
 import { AboutSettings } from './AboutSettings';
 import { SessionRetentionSettings } from './SessionRetentionSettings';
 import { DefaultsSettings } from './DefaultsSettings';
+import { DisplaySettingsPage } from './DisplaySettingsPage';
 import { ScrollableOverlay } from '@/components/ui/ScrollableOverlay';
 import { useDeviceInfo } from '@/lib/device';
 import { isWebRuntime } from '@/lib/desktop';
@@ -49,6 +50,8 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
                 return <ChatSectionContent />;
             case 'sessions':
                 return <SessionsSectionContent />;
+            case 'display':
+                return <DisplaySettingsPage />;
             default:
                 return null;
         }
