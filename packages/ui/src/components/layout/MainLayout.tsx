@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { CommandPalette } from '../ui/CommandPalette';
 import { HelpDialog } from '../ui/HelpDialog';
+import { StatusDialog } from '@/components/status';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
 import { ExportSessionDialog } from '@/components/session/ExportSessionDialog';
@@ -28,6 +29,8 @@ export const MainLayout: React.FC = () => {
         setSessionSwitcherOpen,
         isSettingsDialogOpen,
         setSettingsDialogOpen,
+        isStatusDialogOpen,
+        setStatusDialogOpen,
     } = useUIStore();
     const { isMobile } = useDeviceInfo();
     const [isDesktopRuntime, setIsDesktopRuntime] = React.useState<boolean>(() => {
@@ -239,6 +242,10 @@ export const MainLayout: React.FC = () => {
             >
                 <CommandPalette />
                 <HelpDialog />
+                <StatusDialog
+                    open={isStatusDialogOpen}
+                    onOpenChange={setStatusDialogOpen}
+                />
                 <SessionDialogs />
                 <ExportSessionDialog />
                 <ForkSessionDialog />

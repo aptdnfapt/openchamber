@@ -15,7 +15,7 @@ import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { usePromptStashStore } from '@/stores/usePromptStashStore';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useDeviceInfo } from '@/lib/device';
-import { RiAddLine, RiArrowGoBackLine, RiArrowGoForwardLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiDownloadLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
+import { RiAddLine, RiArrowGoBackLine, RiArrowGoForwardLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiDashboard3Line, RiDownloadLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
 import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
 
 export const CommandPalette: React.FC = () => {
@@ -27,6 +27,7 @@ export const CommandPalette: React.FC = () => {
     setActiveMainTab,
     setSettingsDialogOpen,
     setSessionSwitcherOpen,
+    setStatusDialogOpen,
     toggleSidebar,
   } = useUIStore();
 
@@ -125,6 +126,11 @@ export const CommandPalette: React.FC = () => {
 
   const handleOpenSettings = () => {
     setSettingsDialogOpen(true);
+    handleClose();
+  };
+
+  const handleOpenStatus = () => {
+    setStatusDialogOpen(true);
     handleClose();
   };
 
@@ -252,6 +258,11 @@ export const CommandPalette: React.FC = () => {
             <RiSettings3Line className="mr-2 h-4 w-4" />
             <span>Open Settings</span>
             <CommandShortcut>Ctrl + ,</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={handleOpenStatus}>
+            <RiDashboard3Line className="mr-2 h-4 w-4" />
+            <span>System Status</span>
+            <CommandShortcut>Ctrl + Shift + S</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={handleReloadConfiguration}>
             <RiRestartLine className="mr-2 h-4 w-4" />
