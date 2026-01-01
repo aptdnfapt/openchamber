@@ -1,7 +1,7 @@
-import { RiBrainAi3Line, RiChatAi3Line, RiCommandLine, RiGitBranchLine, RiSettings3Line, RiStackLine, RiBookLine } from '@remixicon/react';
+import { RiBrainAi3Line, RiChatAi3Line, RiCommandLine, RiGitBranchLine, RiSettings3Line, RiStackLine, RiBookLine, RiPlug2Line } from '@remixicon/react';
 import type { ComponentType } from 'react';
 
-export type SidebarSection = 'sessions' | 'agents' | 'commands' | 'skills' | 'providers' | 'git-identities' | 'settings';
+export type SidebarSection = 'sessions' | 'agents' | 'commands' | 'skills' | 'providers' | 'git-identities' | 'mcp' | 'settings';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type IconComponent = ComponentType<any>;
@@ -55,6 +55,12 @@ export const SIDEBAR_SECTIONS: SidebarSectionConfig[] = [
         label: 'OpenChamber',
         description: 'OpenChamber app settings: themes, fonts, and preferences.',
         icon: RiSettings3Line,
+    },
+    {
+        id: 'mcp',
+        label: 'MCP Servers',
+        description: 'View and manage Model Context Protocol (MCP) servers status.',
+        icon: RiPlug2Line,
     },
 ];
 
