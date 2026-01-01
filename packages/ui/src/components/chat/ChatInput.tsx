@@ -38,6 +38,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { StashButton, StashPanel } from './stash';
+import { UndoRedoControls } from './UndoRedoControls';
+import { UndoConfirmationDialog } from './UndoConfirmationDialog';
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8;
 const EMPTY_QUEUE: QueuedMessage[] = [];
@@ -1338,6 +1340,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
                         {isMobile ? (
                             <div className="flex w-full items-center gap-x-1.5">
                                 <div className="flex items-center flex-shrink-0 gap-x-1">
+                                    <UndoRedoControls variant="toolbar" />
                                     {attachmentsControls}
                                 </div>
                                 <div className="flex flex-1 items-center justify-end gap-x-1 min-w-0">
@@ -1350,6 +1353,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
                         ) : (
                             <>
                                 <div className={cn("flex items-center flex-shrink-0", footerGapClass)}>
+                                    <UndoRedoControls variant="toolbar" />
                                     {attachmentsControls}
                                 </div>
                                 <div className={cn('flex items-center flex-1 justify-end', footerGapClass, 'md:gap-x-3')}>
@@ -1358,6 +1362,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onOpenSettings, scrollToBo
                                 </div>
                             </>
                         )}
+                        <UndoConfirmationDialog />
                     </div>
                 </div>
 

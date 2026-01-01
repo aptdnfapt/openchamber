@@ -16,6 +16,7 @@ import { useDeviceInfo } from '@/lib/device';
 import { cn } from '@/lib/utils';
 import { useDiffFileCount } from '@/components/views/DiffView';
 import { ForkSessionButton } from '@/components/session/ForkSessionButton';
+import { UndoRedoControls } from '@/components/chat/UndoRedoControls';
 
 interface TabConfig {
   id: MainTab;
@@ -406,6 +407,7 @@ export const Header: React.FC = () => {
 
       {}
       <div className="flex items-center gap-1 pr-3">
+        <UndoRedoControls variant="header" />
         <Tooltip delayDuration={500}>
           <TooltipTrigger asChild>
             <button

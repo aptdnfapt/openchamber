@@ -6,7 +6,7 @@ import { useAssistantStatus } from '@/hooks/useAssistantStatus';
 import { getRegisteredRuntimeAPIs } from '@/contexts/runtimeAPIRegistry';
 
 export const useKeyboardShortcuts = () => {
-  const { openNewSessionDraft, abortCurrentOperation, armAbortPrompt, clearAbortPrompt, currentSessionId } = useSessionStore();
+  const { openNewSessionDraft, abortCurrentOperation, armAbortPrompt, clearAbortPrompt, currentSessionId, setUndoDialogOpen, revertToMessage, sessions } = useSessionStore();
   const {
     toggleCommandPalette,
     toggleHelpDialog,
@@ -21,6 +21,20 @@ export const useKeyboardShortcuts = () => {
   const abortPrimedUntilRef = React.useRef<number | null>(null);
   const abortPrimedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDownloadingLogsRef = React.useRef(false);
+
+  // Check if we can undo
+  const canUndo = React.useMemo(() => {
+    if (!currentSessionId) return false;
+    const session = sessions.find((s) => s.id === currentSessionId);
+    return !session?.revert;
+  }, [currentSessionId, sessions]);
+
+  // Check if we can redo
+  const canRedo = React.useMemo(() => {
+    if (!currentSessionId) return false;
+    const session = sessions.find((s) => s.id === currentSessionId);
+    return Boolean(session?.revert);
+  }, [currentSessionId, sessions]);
 
   const resetAbortPriming = React.useCallback(() => {
     if (abortPrimedTimeoutRef.current) {
@@ -143,6 +157,22 @@ export const useKeyboardShortcuts = () => {
         return;
       }
 
+      // Undo shortcut: Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        if (!canUndo) return;
+        e.preventDefault();
+        setUndoDialogOpen(true);
+        return;
+      }
+
+      // Redo shortcut: Ctrl+Y or Ctrl+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        if (!canRedo || !currentSessionId) return;
+        e.preventDefault();
+        void revertToMessage(currentSessionId, '');
+        return;
+      }
+
       if (e.key === 'Escape') {
         const {
           isSettingsDialogOpen,
@@ -228,6 +258,11 @@ export const useKeyboardShortcuts = () => {
     armAbortPrompt,
     resetAbortPriming,
     currentSessionId,
+    setUndoDialogOpen,
+    revertToMessage,
+    canUndo,
+    canRedo,
+    sessions,
   ]);
 
   React.useEffect(() => {

@@ -173,6 +173,7 @@ export const useSessionStore = create<SessionStore>()(
                 isLoading: false,
                 error: null,
             },
+            isUndoDialogOpen: false,
 
                 getSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => {
                     return useContextStore.getState().getSessionAgentEditMode(sessionId, agentName, defaultMode);
@@ -831,6 +832,22 @@ export const useSessionStore = create<SessionStore>()(
                     const targetMessage = messages.find((m) => m.info.id === messageId);
                     let messageText = '';
 
+                    // If messageId is empty, use unrevertSession API (redo)
+                    if (!messageId) {
+                        try {
+                            const updatedSession = await opencodeClient.unrevertSession(sessionId);
+                            useSessionManagementStore.getState().updateSession(updatedSession);
+                            // Reload all messages to get the full history
+                            await useMessageStore.getState().loadMessages(sessionId);
+                            const { toast } = await import('sonner');
+                            toast.success('Undo state cleared');
+                            return;
+                        } catch (error) {
+                            console.error('Failed to unrevert:', error);
+                            throw error;
+                        }
+                    }
+
                     if (targetMessage && targetMessage.info.role === 'user') {
                         // Extract text from user message parts
                         const textParts = targetMessage.parts.filter((p) => p.type === 'text');
@@ -868,6 +885,10 @@ export const useSessionStore = create<SessionStore>()(
                     if (messageText) {
                         set({ pendingInputText: messageText });
                     }
+                },
+
+                setUndoDialogOpen: (open: boolean) => {
+                    set({ isUndoDialogOpen: open });
                 },
 
                 setPendingInputText: (text: string | null) => {

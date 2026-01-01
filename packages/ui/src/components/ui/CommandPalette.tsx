@@ -15,7 +15,7 @@ import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { usePromptStashStore } from '@/stores/usePromptStashStore';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useDeviceInfo } from '@/lib/device';
-import { RiAddLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiDownloadLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
+import { RiAddLine, RiArrowGoBackLine, RiArrowGoForwardLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiDownloadLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
 import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
 
 export const CommandPalette: React.FC = () => {
@@ -39,6 +39,9 @@ export const CommandPalette: React.FC = () => {
     currentSessionId,
     openExportDialog,
     openForkDialog,
+    revertToMessage,
+    setUndoDialogOpen,
+    sessions,
   } = useSessionStore();
 
   const prompts = usePromptStashStore((state) => state.prompts);
@@ -149,6 +152,35 @@ export const CommandPalette: React.FC = () => {
     }
   };
 
+  const handleUndo = () => {
+    setUndoDialogOpen(true);
+    handleClose();
+  };
+
+  const handleRedo = async () => {
+    if (currentSessionId) {
+      try {
+        // Revert with empty messageId triggers unrevert (redo)
+        await revertToMessage(currentSessionId, '');
+      } catch (error) {
+        console.error('Failed to redo:', error);
+      }
+      handleClose();
+    }
+  };
+
+  const canUndo = React.useMemo(() => {
+    if (!currentSessionId) return false;
+    const session = sessions.find((s) => s.id === currentSessionId);
+    return !session?.revert;
+  }, [currentSessionId, sessions]);
+
+  const canRedo = React.useMemo(() => {
+    if (!currentSessionId) return false;
+    const session = sessions.find((s) => s.id === currentSessionId);
+    return Boolean(session?.revert);
+  }, [currentSessionId, sessions]);
+
   const directorySessions = getSessionsByDirectory(currentDirectory ?? '');
   const currentSessions = React.useMemo(() => {
     return directorySessions.slice(0, 5);
@@ -175,6 +207,16 @@ export const CommandPalette: React.FC = () => {
             <RiGitBranchLine className="mr-2 h-4 w-4" />
             <span>New Session with Worktree</span>
             <CommandShortcut>Shift + Ctrl + N</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={handleUndo} disabled={!canUndo}>
+            <RiArrowGoBackLine className="mr-2 h-4 w-4" />
+            <span>Undo</span>
+            <CommandShortcut>Ctrl + Z</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={handleRedo} disabled={!canRedo}>
+            <RiArrowGoForwardLine className="mr-2 h-4 w-4" />
+            <span>Redo</span>
+            <CommandShortcut>Ctrl + Y</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={handleExportCurrentSession} disabled={!currentSessionId}>
             <RiDownloadLine className="mr-2 h-4 w-4" />

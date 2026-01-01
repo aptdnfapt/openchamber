@@ -7,6 +7,7 @@ import type { Permission } from '@/types/permission';
 import type { AnimationHandlers, ContentChangeReason } from '@/hooks/useChatScrollManager';
 import { filterSyntheticParts } from '@/lib/messages/synthetic';
 import { useTurnGrouping } from './hooks/useTurnGrouping';
+import { UndoIndicator } from './UndoIndicator';
 
 interface MessageListProps {
     messages: { info: Message; parts: Part[] }[];
@@ -80,6 +81,7 @@ const MessageList: React.FC<MessageListProps> = ({
             )}
 
             <div className="flex flex-col">
+                <UndoIndicator />
                 {displayMessages.map((message, index) => {
                     // Check if this is the first user message
                     const isFirstUserMessage = message.info.role === 'user' &&

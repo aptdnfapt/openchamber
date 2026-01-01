@@ -145,6 +145,8 @@ export interface SessionStore {
         loadedAt: number;
     }>;
 
+    isUndoDialogOpen: boolean;
+
     getSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => EditPermissionMode;
     toggleSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => void;
     setSessionAgentEditMode: (sessionId: string, agentName: string | undefined, mode: EditPermissionMode, defaultMode?: EditPermissionMode) => void;
@@ -241,6 +243,7 @@ export interface SessionStore {
      updateSession: (session: Session) => void;
 
      revertToMessage: (sessionId: string, messageId: string) => Promise<void>;
+     setUndoDialogOpen: (open: boolean) => void;
      setPendingInputText: (text: string | null) => void;
      consumePendingInputText: () => string | null;
 
