@@ -98,6 +98,7 @@ export const usePromptStashStore = create<PromptStashState & PromptStashActions>
       },
 
       searchPrompts: (query: string) => {
+        if (!query) return get().prompts;
         const lowerQuery = query.toLowerCase().trim();
         if (!lowerQuery) return get().prompts;
 
