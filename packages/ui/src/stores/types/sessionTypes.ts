@@ -67,6 +67,16 @@ export type NewSessionDraftState = {
     title?: string;
 };
 
+export type ExportDialogState = {
+    open: boolean;
+    sessionId: string | null;
+    filename: string;
+    includeThinking: boolean;
+    includeToolDetails: boolean;
+    isLoading: boolean;
+    error: string | null;
+};
+
 export interface SessionStore {
 
     sessions: Session[];
@@ -110,6 +120,8 @@ export interface SessionStore {
     pendingInputText: string | null;
 
     newSessionDraft: NewSessionDraftState;
+
+    exportDialogState: ExportDialogState;
 
     sessionHierarchy: Map<string, {
         parentId: string | null;
@@ -197,6 +209,14 @@ export interface SessionStore {
     initializeSessionContextUsage: (sessionId: string, contextLimit: number, outputLimit: number) => void;
 
      debugSessionMessages: (sessionId: string) => Promise<void>;
+
+    // Export dialog actions
+    openExportDialog: (sessionId: string) => void;
+    closeExportDialog: () => void;
+    setExportFilename: (filename: string) => void;
+    setExportOption: (option: 'thinking' | 'toolDetails', value: boolean) => void;
+    copyTranscript: () => Promise<void>;
+    exportToFile: () => Promise<void>;
 
      pollForTokenUpdates: (sessionId: string, messageId: string, maxAttempts?: number) => void;
      updateSession: (session: Session) => void;

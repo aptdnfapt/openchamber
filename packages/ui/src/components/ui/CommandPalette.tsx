@@ -15,7 +15,7 @@ import { useDirectoryStore } from '@/stores/useDirectoryStore';
 import { usePromptStashStore } from '@/stores/usePromptStashStore';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useDeviceInfo } from '@/lib/device';
-import { RiAddLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
+import { RiAddLine, RiChatAi3Line, RiCheckLine, RiCodeLine, RiComputerLine, RiDownloadLine, RiGitBranchLine, RiLayoutLeftLine, RiMoonLine, RiQuestionLine, RiRestartLine, RiSettings3Line, RiStarLine, RiStarSLine, RiSunLine, RiTerminalBoxLine } from '@remixicon/react';
 import { reloadOpenCodeConfiguration } from '@/stores/useAgentsStore';
 
 export const CommandPalette: React.FC = () => {
@@ -36,6 +36,8 @@ export const CommandPalette: React.FC = () => {
     getSessionsByDirectory,
     pendingInputText,
     setPendingInputText,
+    currentSessionId,
+    openExportDialog,
   } = useSessionStore();
 
   const prompts = usePromptStashStore((state) => state.prompts);
@@ -74,6 +76,13 @@ export const CommandPalette: React.FC = () => {
   const handleOpenAdvancedSession = () => {
     setSessionCreateDialogOpen(true);
     handleClose();
+  };
+
+  const handleExportCurrentSession = () => {
+    if (currentSessionId) {
+      openExportDialog(currentSessionId);
+      handleClose();
+    }
   };
 
   const { isMobile } = useDeviceInfo();
@@ -158,6 +167,11 @@ export const CommandPalette: React.FC = () => {
             <RiGitBranchLine className="mr-2 h-4 w-4" />
             <span>New Session with Worktree</span>
             <CommandShortcut>Shift + Ctrl + N</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={handleExportCurrentSession} disabled={!currentSessionId}>
+            <RiDownloadLine className="mr-2 h-4 w-4" />
+            <span>Export Session</span>
+            <CommandShortcut>Ctrl + Shift + E</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={handleShowHelp}>
             <RiQuestionLine className="mr-2 h-4 w-4" />

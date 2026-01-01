@@ -3,7 +3,7 @@ import type { StoreApi, UseBoundStore } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { Session, Message, Part } from "@opencode-ai/sdk";
 import type { Permission, PermissionResponse } from "@/types/permission";
-import type { SessionStore, AttachedFile, EditPermissionMode } from "./types/sessionTypes";
+import type { SessionStore, AttachedFile, EditPermissionMode, ExportDialogState } from "./types/sessionTypes";
 import { ACTIVE_SESSION_WINDOW, MEMORY_LIMITS } from "./types/sessionTypes";
 
 import { useSessionStore as useSessionManagementStore } from "./sessionStore";
@@ -25,6 +25,65 @@ declare global {
         __zustand_session_store__?: UseBoundStore<StoreApi<SessionStore>>;
     }
 }
+
+const generateMarkdown = (messages: { info: Message; parts: Part[] }[], includeThinking: boolean, includeToolDetails: boolean): string => {
+    const lines: string[] = [];
+    lines.push('# Session Transcript\n');
+    lines.push(`Generated: ${new Date().toISOString()}\n`);
+    lines.push('---\n\n');
+
+    for (const { info, parts } of messages) {
+        const roleDisplay = info.role === 'user' ? '**You**' : '**OpenCode**';
+        const timestamp = new Date(info.time.created).toLocaleString();
+        lines.push(`## ${roleDisplay}\n`);
+        lines.push(`*${timestamp}*\n\n`);
+
+        for (const part of parts) {
+            if (part.type === 'text') {
+                const textPart = part as { text?: string; synthetic?: boolean };
+                if (!textPart.synthetic) {
+                    lines.push(textPart.text || '');
+                    lines.push('\n\n');
+                }
+            } else if (part.type === 'reasoning' && includeThinking) {
+                const reasoningPart = part as { text: string };
+                lines.push('<details>\n<summary>Thinking</summary>\n\n');
+                lines.push(reasoningPart.text);
+                lines.push('\n\n</details>\n\n');
+            } else if (part.type === 'tool' && includeToolDetails) {
+                const toolPart = part as {
+                    tool: string;
+                    state: {
+                        input?: unknown;
+                        output?: string;
+                        error?: string;
+                    };
+                };
+                lines.push(`**Tool:** ${toolPart.tool}\n\n`);
+                if (toolPart.state.input) {
+                    lines.push('**Input:**\n');
+                    lines.push('```json\n');
+                    lines.push(JSON.stringify(toolPart.state.input, null, 2));
+                    lines.push('\n```\n\n');
+                }
+                if (toolPart.state.output) {
+                    lines.push('**Output:**\n');
+                    lines.push('```\n');
+                    lines.push(toolPart.state.output);
+                    lines.push('\n```\n\n');
+                }
+                if (toolPart.state.error) {
+                    lines.push('**Error:**\n');
+                    lines.push('```\n');
+                    lines.push(toolPart.state.error);
+                    lines.push('\n```\n\n');
+                }
+            }
+        }
+    }
+
+    return lines.join('');
+};
 
 const normalizePath = (value?: string | null): string | null => {
     if (typeof value !== "string") {
@@ -96,6 +155,15 @@ export const useSessionStore = create<SessionStore>()(
             userSummaryTitles: new Map(),
             pendingInputText: null,
             newSessionDraft: { open: true, directoryOverride: null, parentID: null },
+            exportDialogState: {
+                open: false,
+                sessionId: null,
+                filename: '',
+                includeThinking: false,
+                includeToolDetails: false,
+                isLoading: false,
+                error: null,
+            },
 
                 getSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => {
                     return useContextStore.getState().getSessionAgentEditMode(sessionId, agentName, defaultMode);
@@ -501,6 +569,151 @@ export const useSessionStore = create<SessionStore>()(
                             tokens: (m.info as Record<string, unknown>).tokens
                         }))
                     });
+                },
+                openExportDialog: (sessionId: string) => {
+                    const sessions = useSessionManagementStore.getState().sessions;
+                    const session = sessions.find(s => s.id === sessionId);
+                    if (!session) {
+                        return;
+                    }
+                    const shortId = sessionId.slice(0, 8);
+                    set({
+                        exportDialogState: {
+                            open: true,
+                            sessionId,
+                            filename: `session-${shortId}.md`,
+                            includeThinking: false,
+                            includeToolDetails: false,
+                            isLoading: false,
+                            error: null,
+                        },
+                    });
+                },
+                closeExportDialog: () => {
+                    set({
+                        exportDialogState: {
+                            open: false,
+                            sessionId: null,
+                            filename: '',
+                            includeThinking: false,
+                            includeToolDetails: false,
+                            isLoading: false,
+                            error: null,
+                        },
+                    });
+                },
+                setExportFilename: (filename: string) => {
+                    set((state) => ({
+                        exportDialogState: {
+                            ...state.exportDialogState,
+                            filename,
+                        },
+                    }));
+                },
+                setExportOption: (option: 'thinking' | 'toolDetails', value: boolean) => {
+                    set((state) => {
+                        const updates: Partial<ExportDialogState> = {};
+                        if (option === 'thinking') {
+                            updates.includeThinking = value;
+                        } else if (option === 'toolDetails') {
+                            updates.includeToolDetails = value;
+                        }
+                        return {
+                            exportDialogState: {
+                                ...state.exportDialogState,
+                                ...updates,
+                            },
+                        };
+                    });
+                },
+                copyTranscript: async () => {
+                    const state = get().exportDialogState;
+                    if (!state.sessionId) {
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                error: 'No session selected',
+                            },
+                        }));
+                        return;
+                    }
+                    set((prev) => ({
+                        exportDialogState: {
+                            ...prev.exportDialogState,
+                            isLoading: true,
+                            error: null,
+                        },
+                    }));
+                    try {
+                        const messages = useMessageStore.getState().messages.get(state.sessionId) || [];
+                        const markdown = generateMarkdown(messages, state.includeThinking, state.includeToolDetails);
+                        await navigator.clipboard.writeText(markdown);
+                    } catch (error) {
+                        console.error('Failed to copy transcript:', error);
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                error: error instanceof Error ? error.message : 'Failed to copy transcript',
+                            },
+                        }));
+                        return;
+                    } finally {
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                isLoading: false,
+                            },
+                        }));
+                    }
+                },
+                exportToFile: async () => {
+                    const state = get().exportDialogState;
+                    if (!state.sessionId) {
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                error: 'No session selected',
+                            },
+                        }));
+                        return;
+                    }
+                    set((prev) => ({
+                        exportDialogState: {
+                            ...prev.exportDialogState,
+                            isLoading: true,
+                            error: null,
+                        },
+                    }));
+                    try {
+                        const messages = useMessageStore.getState().messages.get(state.sessionId) || [];
+                        const markdown = generateMarkdown(messages, state.includeThinking, state.includeToolDetails);
+                        const blob = new Blob([markdown], { type: 'text/markdown' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = state.filename || 'session-export.md';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        get().closeExportDialog();
+                    } catch (error) {
+                        console.error('Failed to export transcript:', error);
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                error: error instanceof Error ? error.message : 'Failed to export transcript',
+                            },
+                        }));
+                        return;
+                    } finally {
+                        set((prev) => ({
+                            exportDialogState: {
+                                ...prev.exportDialogState,
+                                isLoading: false,
+                            },
+                        }));
+                    }
                 },
                 pollForTokenUpdates: (sessionId: string, messageId: string, maxAttempts?: number) => {
                     const messages = useMessageStore.getState().messages;

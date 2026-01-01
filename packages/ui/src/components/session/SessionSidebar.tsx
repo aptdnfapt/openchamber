@@ -16,6 +16,7 @@ import {
   RiCheckLine,
   RiCloseLine,
   RiDeleteBinLine,
+  RiDownloadLine,
   RiErrorWarningLine,
   RiFileCopyLine,
   RiFolder6Line,
@@ -150,6 +151,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const worktreeMetadata = useSessionStore((state) => state.worktreeMetadata);
   const availableWorktrees = useSessionStore((state) => state.availableWorktrees);
   const openNewSessionDraft = useSessionStore((state) => state.openNewSessionDraft);
+  const openExportDialog = useSessionStore((state) => state.openExportDialog);
 
   const [isDesktopRuntime, setIsDesktopRuntime] = React.useState<boolean>(() => {
     if (typeof window === 'undefined') {
@@ -911,6 +913,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
                         </DropdownMenuItem>
                       </>
                     )}
+                    <DropdownMenuItem onClick={() => openExportDialog(session.id)} className="[&>svg]:mr-1">
+                      <RiDownloadLine className="mr-1 h-4 w-4" />
+                      Export
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive [&>svg]:mr-1"
                       onClick={() => handleDeleteSession(session)}
@@ -947,6 +953,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       handleCopyShareUrl,
       handleUnshareSession,
       handleDeleteSession,
+      openExportDialog,
       copiedSessionId,
       mobileVariant,
     ],

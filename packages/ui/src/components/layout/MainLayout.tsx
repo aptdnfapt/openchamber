@@ -6,6 +6,7 @@ import { CommandPalette } from '../ui/CommandPalette';
 import { HelpDialog } from '../ui/HelpDialog';
 import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
+import { ExportSessionDialog } from '@/components/session/ExportSessionDialog';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
 
@@ -238,6 +239,7 @@ export const MainLayout: React.FC = () => {
                 <CommandPalette />
                 <HelpDialog />
                 <SessionDialogs />
+                <ExportSessionDialog />
 
                 {isMobile ? (
                 <>
