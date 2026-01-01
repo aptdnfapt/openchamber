@@ -38,6 +38,7 @@ export const CommandPalette: React.FC = () => {
     setPendingInputText,
     currentSessionId,
     openExportDialog,
+    openForkDialog,
   } = useSessionStore();
 
   const prompts = usePromptStashStore((state) => state.prompts);
@@ -81,6 +82,13 @@ export const CommandPalette: React.FC = () => {
   const handleExportCurrentSession = () => {
     if (currentSessionId) {
       openExportDialog(currentSessionId);
+      handleClose();
+    }
+  };
+
+  const handleForkSession = () => {
+    if (currentSessionId) {
+      openForkDialog(currentSessionId);
       handleClose();
     }
   };
@@ -172,6 +180,11 @@ export const CommandPalette: React.FC = () => {
             <RiDownloadLine className="mr-2 h-4 w-4" />
             <span>Export Session</span>
             <CommandShortcut>Ctrl + Shift + E</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={handleForkSession} disabled={!currentSessionId}>
+            <RiGitBranchLine className="mr-2 h-4 w-4" />
+            <span>Fork Session</span>
+            <CommandShortcut>Ctrl + Shift + F</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={handleShowHelp}>
             <RiQuestionLine className="mr-2 h-4 w-4" />

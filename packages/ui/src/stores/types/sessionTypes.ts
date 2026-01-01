@@ -77,6 +77,16 @@ export type ExportDialogState = {
     error: string | null;
 };
 
+export type ForkDialogState = {
+    open: boolean;
+    sourceSessionId: string | null;
+    selectedMessageId: string | null;
+    messages: Message[];
+    searchQuery: string;
+    isLoading: boolean;
+    error: string | null;
+};
+
 export interface SessionStore {
 
     sessions: Session[];
@@ -122,6 +132,8 @@ export interface SessionStore {
     newSessionDraft: NewSessionDraftState;
 
     exportDialogState: ExportDialogState;
+
+    forkDialogState: ForkDialogState;
 
     sessionHierarchy: Map<string, {
         parentId: string | null;
@@ -217,6 +229,13 @@ export interface SessionStore {
     setExportOption: (option: 'thinking' | 'toolDetails', value: boolean) => void;
     copyTranscript: () => Promise<void>;
     exportToFile: () => Promise<void>;
+
+    // Fork dialog actions
+    openForkDialog: (sessionId: string) => Promise<void>;
+    closeForkDialog: () => void;
+    setForkSearchQuery: (query: string) => void;
+    selectForkMessage: (messageId: string) => void;
+    forkFromMessage: (sessionId: string, messageId: string) => Promise<void>;
 
      pollForTokenUpdates: (sessionId: string, messageId: string, maxAttempts?: number) => void;
      updateSession: (session: Session) => void;

@@ -590,6 +590,21 @@ class OpencodeService {
     return response.data;
   }
 
+  async forkSession(sessionId: string, messageId: string): Promise<Session> {
+    // Using 'any' type here because the SDK fork method has complex type inference
+    // that causes TypeScript errors. The parameters are correctly structured for
+    // the API: { sessionID: string, directory?: string, messageID: string }
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const response = await this.client.session.fork({
+      sessionID: sessionId,
+      directory: this.currentDirectory ?? undefined,
+      messageID: messageId
+    } as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    if (!response.data) throw new Error('Failed to fork session');
+    return response.data;
+  }
+
   async getSessionStatus(): Promise<
     Record<string, { type: "idle" | "busy" | "retry"; attempt?: number; message?: string; next?: number }>
   > {

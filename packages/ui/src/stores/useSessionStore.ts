@@ -164,6 +164,15 @@ export const useSessionStore = create<SessionStore>()(
                 isLoading: false,
                 error: null,
             },
+            forkDialogState: {
+                open: false,
+                sourceSessionId: null,
+                selectedMessageId: null,
+                messages: [],
+                searchQuery: '',
+                isLoading: false,
+                error: null,
+            },
 
                 getSessionAgentEditMode: (sessionId: string, agentName: string | undefined, defaultMode?: EditPermissionMode) => {
                     return useContextStore.getState().getSessionAgentEditMode(sessionId, agentName, defaultMode);
@@ -711,6 +720,101 @@ export const useSessionStore = create<SessionStore>()(
                             exportDialogState: {
                                 ...prev.exportDialogState,
                                 isLoading: false,
+                            },
+                        }));
+                    }
+                },
+                openForkDialog: async (sessionId: string) => {
+                    set((prev) => ({
+                        forkDialogState: {
+                            ...prev.forkDialogState,
+                            open: true,
+                            sourceSessionId: sessionId,
+                            selectedMessageId: null,
+                            searchQuery: '',
+                            isLoading: true,
+                            error: null,
+                        },
+                    }));
+                    try {
+                        await get().loadMessages(sessionId);
+                        const messages = useMessageStore.getState().messages.get(sessionId) || [];
+                        const userMessages = messages
+                            .filter((m) => m.info.role === 'user')
+                            .map((m) => m.info);
+                        set((prev) => ({
+                            forkDialogState: {
+                                ...prev.forkDialogState,
+                                messages: userMessages,
+                                isLoading: false,
+                            },
+                        }));
+                    } catch (error) {
+                        console.error('Failed to load messages for fork:', error);
+                        set((prev) => ({
+                            forkDialogState: {
+                                ...prev.forkDialogState,
+                                isLoading: false,
+                                error: error instanceof Error ? error.message : 'Failed to load messages',
+                            },
+                        }));
+                    }
+                },
+                closeForkDialog: () => {
+                    set({
+                        forkDialogState: {
+                            open: false,
+                            sourceSessionId: null,
+                            selectedMessageId: null,
+                            messages: [],
+                            searchQuery: '',
+                            isLoading: false,
+                            error: null,
+                        },
+                    });
+                },
+                setForkSearchQuery: (query: string) => {
+                    set((prev) => ({
+                        forkDialogState: {
+                            ...prev.forkDialogState,
+                            searchQuery: query,
+                        },
+                    }));
+                },
+                selectForkMessage: (messageId: string) => {
+                    set((prev) => ({
+                        forkDialogState: {
+                            ...prev.forkDialogState,
+                            selectedMessageId: messageId,
+                        },
+                    }));
+                },
+                forkFromMessage: async (sessionId: string, messageId: string) => {
+                    set((prev) => ({
+                        forkDialogState: {
+                            ...prev.forkDialogState,
+                            isLoading: true,
+                            error: null,
+                        },
+                    }));
+                    try {
+                        const newSession = await opencodeClient.forkSession(sessionId, messageId);
+                        await useSessionManagementStore.getState().updateSession(newSession);
+                        set((prev) => ({
+                            currentSessionId: newSession.id,
+                            sessions: [...prev.sessions, newSession],
+                        }));
+                        await get().loadMessages(newSession.id);
+                        get().closeForkDialog();
+                        const { toast } = await import('sonner');
+                        toast.success('Session forked successfully');
+                    } catch (error) {
+                        console.error('Failed to fork session:', error);
+                        set((prev) => ({
+                            forkDialogState: {
+                                ...prev.forkDialogState,
+                                isLoading: false,
+                                error: error instanceof Error ? error.message : 'Failed to fork session',
                             },
                         }));
                     }

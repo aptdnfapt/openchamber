@@ -15,6 +15,7 @@ import { SessionNavigationHeader } from '@/components/session/navigation';
 import { useDeviceInfo } from '@/lib/device';
 import { cn } from '@/lib/utils';
 import { useDiffFileCount } from '@/components/views/DiffView';
+import { ForkSessionButton } from '@/components/session/ForkSessionButton';
 
 interface TabConfig {
   id: MainTab;
@@ -396,6 +397,7 @@ export const Header: React.FC = () => {
 
       {}
       <div className="flex items-center gap-2">
+        <ForkSessionButton />
         <SessionNavigationHeader />
       </div>
 
