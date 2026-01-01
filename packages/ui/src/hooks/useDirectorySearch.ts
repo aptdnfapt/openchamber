@@ -17,26 +17,17 @@ export const useDirectorySearch = () => {
     const trimmedQuery = query.trim();
     setCurrentQuery(trimmedQuery);
 
-    try {
-      setIsLoading(true);
-      setError(null);
+      try {
+        setIsLoading(true);
+        setError(null);
 
-      // Get the raw API client to access findFile
-      const apiClient = opencodeClient.getApiClient();
-
-      // Call findFile endpoint with type=directory to filter to directories only
-      const response = await (apiClient as unknown as { find: (params: unknown) => Promise<{ data: unknown }> }).find({
-        query: {
-          query: trimmedQuery,
+        // Use the SDK's searchFiles method with directory parameter
+        const results = await opencodeClient.searchFiles(trimmedQuery, {
           type: 'directory',
           limit: 20,
-        }
-      });
+        });
 
-      if (response.data && Array.isArray(response.data)) {
-        setResults(response.data);
-      } else {
-        setResults([]);
+        setResults(results);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');

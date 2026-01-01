@@ -98,15 +98,25 @@ export const usePromptStashStore = create<PromptStashState & PromptStashActions>
       },
 
       searchPrompts: (query: string) => {
-        if (!query) return get().prompts;
-        const lowerQuery = query.toLowerCase().trim();
-        if (!lowerQuery) return get().prompts;
-
-        return get().prompts.filter((p) =>
-          p.text.toLowerCase().includes(lowerQuery) ||
-          p.title.toLowerCase().includes(lowerQuery) ||
-          p.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
-        );
+        // Early return if no query or empty query
+        if (!query || query.trim().length === 0) {
+          return get().prompts;
+        }
+        
+        try {
+          const lowerQuery = query.toLowerCase().trim();
+          const prompts = get().prompts;
+          
+          return prompts.filter((p) =>
+            p.text.toLowerCase().includes(lowerQuery) ||
+            p.title.toLowerCase().includes(lowerQuery) ||
+            p.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
+          );
+        } catch (error) {
+          // If get() is not available or any error, return all prompts
+          console.error('Error in searchPrompts:', error);
+          return get().prompts;
+        }
       },
 
       updatePrompt: (id: string, updates: Partial<StashedPrompt>) => {
