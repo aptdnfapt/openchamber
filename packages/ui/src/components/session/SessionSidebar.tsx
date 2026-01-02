@@ -25,6 +25,7 @@ import {
   RiShare2Line,
 } from '@remixicon/react';
 import { sessionEvents } from '@/lib/sessionEvents';
+import { ArrowsMerge } from '@/components/icons/ArrowsMerge';
 import { formatDirectoryName, formatPathForDisplay, cn } from '@/lib/utils';
 import { useSessionStore } from '@/stores/useSessionStore';
 import { useDirectoryStore } from '@/stores/useDirectoryStore';
@@ -108,6 +109,7 @@ interface SessionSidebarProps {
   onSessionSelected?: (sessionId: string) => void;
   allowReselect?: boolean;
   hideDirectoryControls?: boolean;
+  showOnlyMainWorkspace?: boolean;
 }
 
 export const SessionSidebar: React.FC<SessionSidebarProps> = ({
@@ -115,6 +117,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   onSessionSelected,
   allowReselect = false,
   hideDirectoryControls = false,
+  showOnlyMainWorkspace = false,
 }) => {
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
@@ -130,6 +133,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const [isGitRepo, setIsGitRepo] = React.useState<boolean | null>(null);
   const [expandedSessionGroups, setExpandedSessionGroups] = React.useState<Set<string>>(new Set());
   const [hoveredGroupId, setHoveredGroupId] = React.useState<string | null>(null);
+  const [stuckHeaders, setStuckHeaders] = React.useState<Set<string>>(new Set());
+  const headerSentinelRefs = React.useRef<Map<string, HTMLDivElement | null>>(new Map());
 
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory);
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory);
@@ -137,6 +142,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
 
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab);
   const setSessionSwitcherOpen = useUIStore((state) => state.setSessionSwitcherOpen);
+  const openMultiRunLauncher = useUIStore((state) => state.openMultiRunLauncher);
 
   const getSessionsByDirectory = useSessionStore((state) => state.getSessionsByDirectory);
   const currentSessionId = useSessionStore((state) => state.currentSessionId);
@@ -664,6 +670,38 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     });
   }, []);
 
+  // Track when sticky headers become "stuck" using sentinel elements
+  React.useEffect(() => {
+    if (!isDesktopRuntime) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const groupId = (entry.target as HTMLElement).dataset.groupId;
+          if (!groupId) return;
+          
+          setStuckHeaders((prev) => {
+            const next = new Set(prev);
+            // When sentinel is NOT intersecting, header is stuck
+            if (!entry.isIntersecting) {
+              next.add(groupId);
+            } else {
+              next.delete(groupId);
+            }
+            return next;
+          });
+        });
+      },
+      { threshold: 0 }
+    );
+
+    headerSentinelRefs.current.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [isDesktopRuntime, groupedSessions]);
+
   const renderSessionNode = React.useCallback(
     (node: SessionNode, depth = 0, groupDirectory?: string | null): React.ReactNode => {
       const session = node.session;
@@ -694,6 +732,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
             <div className="flex min-w-0 flex-1 flex-col gap-0">
               <form
                 className="flex w-full items-center gap-2"
+                data-keyboard-avoid="true"
                 onSubmit={(event) => {
                   event.preventDefault();
                   handleSaveEdit();
@@ -987,17 +1026,32 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
             </button>
 
             {isGitRepo ? (
-              <button
-                type="button"
-                onClick={handleOpenWorktreeManager}
-                className={cn(
-                  'inline-flex h-10 w-7 flex-shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
-                  !isDesktopRuntime && 'bg-sidebar/60 hover:bg-sidebar',
-                )}
-                aria-label="Manage worktrees"
-              >
-                <RiGitRepositoryLine className="h-[1.125rem] w-[1.125rem] translate-y-px" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleOpenWorktreeManager}
+                  className={cn(
+                    'inline-flex h-10 w-7 flex-shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                    !isDesktopRuntime && 'bg-sidebar/60 hover:bg-sidebar',
+                  )}
+                  aria-label="Manage worktrees"
+                  title="Manage worktrees"
+                >
+                  <RiGitRepositoryLine className="h-[1.125rem] w-[1.125rem] translate-y-px" />
+                </button>
+                <button
+                  type="button"
+                  onClick={openMultiRunLauncher}
+                  className={cn(
+                    'inline-flex h-10 w-7 flex-shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+                    !isDesktopRuntime && 'bg-sidebar/60 hover:bg-sidebar',
+                  )}
+                  aria-label="New Multi-Run"
+                  title="New Multi-Run"
+                >
+                  <ArrowsMerge className="h-[1.125rem] w-[1.125rem] translate-y-px" />
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -1009,10 +1063,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       >
         {groupedSessions.length === 0 ? (
           emptyState
-        ) : hideDirectoryControls && groupedSessions.length === 1 && groupedSessions[0].isMain ? (
+        ) : (hideDirectoryControls && groupedSessions.length === 1 && groupedSessions[0].isMain) || showOnlyMainWorkspace ? (
           <div className="space-y-[0.6rem] py-1">
             {(() => {
-              const group = groupedSessions[0];
+              const group = groupedSessions.find(g => g.isMain) ?? groupedSessions[0];
               const maxVisible = hideDirectoryControls ? 10 : 7;
               const totalSessions = group.sessions.length;
               const isExpanded = expandedSessionGroups.has(group.id);
@@ -1055,13 +1109,23 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         ) : (
           groupedSessions.map((group) => (
             <div key={group.id} className="relative">
-              {}
+              {/* Sentinel element to detect when header becomes stuck */}
+              {isDesktopRuntime && (
+                <div
+                  ref={(el) => { headerSentinelRefs.current.set(group.id, el); }}
+                  data-group-id={group.id}
+                  className="absolute top-0 h-px w-full pointer-events-none"
+                  aria-hidden="true"
+                />
+              )}
               <button
                 type="button"
                 onClick={() => toggleGroup(group.id)}
                 className={cn(
-                  'sticky top-0 z-10 pt-1.5 pb-1 w-full text-left cursor-pointer group/header border-b',
-                  !isDesktopRuntime && 'bg-sidebar',
+                  'sticky top-0 z-10 pt-1.5 pb-1 w-full text-left cursor-pointer group/header border-b transition-colors duration-150',
+                  isDesktopRuntime
+                    ? stuckHeaders.has(group.id) ? 'bg-sidebar' : 'bg-transparent'
+                    : 'bg-sidebar',
                 )}
                 style={{
                   borderColor: hoveredGroupId === group.id

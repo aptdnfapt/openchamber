@@ -8,6 +8,7 @@ import { SessionSidebar } from '@/components/session/SessionSidebar';
 import { SessionDialogs } from '@/components/session/SessionDialogs';
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { DiffWorkerProvider } from '@/contexts/DiffWorkerProvider';
+import { MultiRunLauncher } from '@/components/multirun';
 
 import { useUIStore } from '@/stores/useUIStore';
 import { useUpdateStore } from '@/stores/useUpdateStore';
@@ -26,7 +27,11 @@ export const MainLayout: React.FC = () => {
         setSessionSwitcherOpen,
         isSettingsDialogOpen,
         setSettingsDialogOpen,
+        isMultiRunLauncherOpen,
+        setMultiRunLauncherOpen,
+        multiRunLauncherPrefillPrompt,
     } = useUIStore();
+
     const { isMobile } = useDeviceInfo();
     const [isDesktopRuntime, setIsDesktopRuntime] = React.useState<boolean>(() => {
         if (typeof window === 'undefined') {
@@ -97,11 +102,41 @@ export const MainLayout: React.FC = () => {
         let stickyKeyboardInset = 0;
         let ignoreOpenUntilZero = false;
         let previousHeight = 0;
+        let keyboardAvoidTarget: HTMLElement | null = null;
+
+        const setKeyboardOpen = useUIStore.getState().setKeyboardOpen;
+
+        const clearKeyboardAvoidTarget = () => {
+            if (!keyboardAvoidTarget) {
+                return;
+            }
+            keyboardAvoidTarget.style.setProperty('--oc-keyboard-avoid-offset', '0px');
+            keyboardAvoidTarget.removeAttribute('data-keyboard-avoid-active');
+            keyboardAvoidTarget = null;
+        };
+
+        const resolveKeyboardAvoidTarget = (active: HTMLElement | null) => {
+            if (!active) {
+                return null;
+            }
+            const markedTarget = active.closest('[data-keyboard-avoid]') as HTMLElement | null;
+            if (markedTarget) {
+                return markedTarget;
+            }
+            if (active.classList.contains('overlay-scrollbar-container')) {
+                const parent = active.parentElement;
+                if (parent instanceof HTMLElement) {
+                    return parent;
+                }
+            }
+            return active;
+        };
 
         const forceKeyboardClosed = () => {
             stickyKeyboardInset = 0;
             ignoreOpenUntilZero = true;
             root.style.setProperty('--oc-keyboard-inset', '0px');
+            setKeyboardOpen(false);
         };
 
         const updateVisualViewport = () => {
@@ -143,19 +178,52 @@ export const MainLayout: React.FC = () => {
                     stickyKeyboardInset = measuredInset;
                 }
             } else {
-                const closingByHeight = height > previousHeight + 6;
+                // Only detect closing-by-height when focus is NOT on text input
+                // (prevents false positives during Android keyboard animation)
+                const closingByHeight = !isTextTarget && height > previousHeight + 6;
 
                 if (measuredInset === 0) {
                     stickyKeyboardInset = 0;
+                    setKeyboardOpen(false);
                 } else if (closingByHeight) {
                     forceKeyboardClosed();
+                } else if (measuredInset > 0 && isTextTarget) {
+                    // When focus is on text input, track actual inset (allows settling
+                    // to correct value after Android animation fluctuations)
+                    stickyKeyboardInset = measuredInset;
+                    setKeyboardOpen(true);
                 } else if (measuredInset > stickyKeyboardInset) {
                     stickyKeyboardInset = measuredInset;
+                    setKeyboardOpen(true);
                 }
             }
 
             root.style.setProperty('--oc-keyboard-inset', `${stickyKeyboardInset}px`);
             previousHeight = height;
+
+            const avoidTarget = isTextTarget ? resolveKeyboardAvoidTarget(active) : null;
+
+            if (!isMobile || !avoidTarget || !active) {
+                clearKeyboardAvoidTarget();
+            } else {
+                if (avoidTarget !== keyboardAvoidTarget) {
+                    clearKeyboardAvoidTarget();
+                    keyboardAvoidTarget = avoidTarget;
+                }
+                const viewportBottom = offsetTop + height;
+                const rect = active.getBoundingClientRect();
+                const overlap = rect.bottom - viewportBottom;
+                const clearance = 8;
+                const keyboardInset = Math.max(stickyKeyboardInset, measuredInset);
+                const avoidOffset = overlap > clearance && keyboardInset > 0
+                    ? Math.min(overlap, keyboardInset)
+                    : 0;
+                const target = keyboardAvoidTarget;
+                if (target) {
+                    target.style.setProperty('--oc-keyboard-avoid-offset', `${avoidOffset}px`);
+                    target.setAttribute('data-keyboard-avoid-active', 'true');
+                }
+            }
 
             // Only force-scroll lock while an input is focused.
             if (isMobile && isTextTarget) {
@@ -176,7 +244,22 @@ export const MainLayout: React.FC = () => {
         viewport?.addEventListener('scroll', updateVisualViewport);
         window.addEventListener('resize', updateVisualViewport);
         window.addEventListener('orientationchange', updateVisualViewport);
-        document.addEventListener('focusin', updateVisualViewport, true);
+        // Reset ignoreOpenUntilZero when focus moves to a text input.
+        // This allows keyboard detection to work when user taps input quickly
+        // while keyboard is still closing (common on Android).
+        const handleFocusIn = (event: FocusEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (!target) {
+                return;
+            }
+            const tagName = target.tagName;
+            const isInput = tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+            if (isInput || target.isContentEditable) {
+                ignoreOpenUntilZero = false;
+            }
+            updateVisualViewport();
+        };
+        document.addEventListener('focusin', handleFocusIn, true);
 
         const handleFocusOut = (event: FocusEvent) => {
             const target = event.target as HTMLElement | null;
@@ -205,8 +288,9 @@ export const MainLayout: React.FC = () => {
             viewport?.removeEventListener('scroll', updateVisualViewport);
             window.removeEventListener('resize', updateVisualViewport);
             window.removeEventListener('orientationchange', updateVisualViewport);
-            document.removeEventListener('focusin', updateVisualViewport, true);
+            document.removeEventListener('focusin', handleFocusIn, true);
             document.removeEventListener('focusout', handleFocusOut, true);
+            clearKeyboardAvoidTarget();
         };
     }, [isMobile]);
 
@@ -241,12 +325,12 @@ export const MainLayout: React.FC = () => {
 
                 {isMobile ? (
                 <>
-                    {/* Mobile: Header + content + settings overlay */}
-                    {!isSettingsDialogOpen && <Header />}
+                    {/* Mobile: Header + content + overlays */}
+                    {!(isSettingsDialogOpen || isMultiRunLauncherOpen) && <Header />}
                     <div
                         className={cn(
                             'flex flex-1 overflow-hidden bg-background',
-                            isSettingsDialogOpen && 'hidden'
+                            (isSettingsDialogOpen || isMultiRunLauncherOpen) && 'hidden'
                         )}
                         style={{ paddingTop: 'var(--oc-header-height, 56px)' }}
                     >
@@ -270,6 +354,19 @@ export const MainLayout: React.FC = () => {
                         <SessionSidebar mobileVariant />
                     </MobileOverlayPanel>
 
+                    {/* Mobile multi-run launcher: full screen */}
+                    {isMultiRunLauncherOpen && (
+                        <div className="absolute inset-0 z-10 bg-background header-safe-area">
+                            <ErrorBoundary>
+                                <MultiRunLauncher
+                                    initialPrompt={multiRunLauncherPrefillPrompt}
+                                    onCreated={() => setMultiRunLauncherOpen(false)}
+                                    onCancel={() => setMultiRunLauncherOpen(false)}
+                                />
+                            </ErrorBoundary>
+                        </div>
+                    )}
+
                     {/* Mobile settings: full screen */}
                     {isSettingsDialogOpen && (
                         <div className="absolute inset-0 z-10 bg-background header-safe-area">
@@ -288,7 +385,7 @@ export const MainLayout: React.FC = () => {
                     {/* Main content area */}
                     <div className="flex flex-1 flex-col overflow-hidden relative">
                         {/* Normal view: Header + content */}
-                        <div className={cn('absolute inset-0 flex flex-col', isSettingsActive && 'invisible')}>
+                        <div className={cn('absolute inset-0 flex flex-col', (isSettingsActive || isMultiRunLauncherOpen) && 'invisible')}>
                             <Header />
                             <div className="flex flex-1 overflow-hidden bg-background">
                                 <main className="flex-1 overflow-hidden bg-background relative">
@@ -303,6 +400,19 @@ export const MainLayout: React.FC = () => {
                                 </main>
                             </div>
                         </div>
+
+                        {/* Multi-Run Launcher: replaces tabs content only */}
+                        {isMultiRunLauncherOpen && (
+                            <div className={cn('absolute inset-0 z-10', isDesktopRuntime ? 'bg-transparent' : 'bg-background')}>
+                                <ErrorBoundary>
+                                    <MultiRunLauncher
+                                        initialPrompt={multiRunLauncherPrefillPrompt}
+                                        onCreated={() => setMultiRunLauncherOpen(false)}
+                                        onCancel={() => setMultiRunLauncherOpen(false)}
+                                    />
+                                </ErrorBoundary>
+                            </div>
+                        )}
                     </div>
 
                     {/* Settings view: full screen overlay */}

@@ -21,6 +21,7 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
     if (!section) {
         return (
             <ScrollableOverlay
+                keyboardAvoid
                 outerClassName="h-full"
                 className="openchamber-page-body mx-auto max-w-3xl space-y-3 p-3 sm:space-y-6 sm:p-6"
             >
@@ -56,6 +57,7 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
 
     return (
         <ScrollableOverlay
+            keyboardAvoid
             outerClassName="h-full"
             className="openchamber-page-body mx-auto max-w-3xl space-y-6 p-3 sm:p-6"
         >
@@ -64,9 +66,9 @@ export const OpenChamberPage: React.FC<OpenChamberPageProps> = ({ section }) => 
     );
 };
 
-// Visual section: Theme Mode, Font Size, Spacing
+// Visual section: Theme Mode, Font Size, Spacing, Input Bar Offset (mobile)
 const VisualSectionContent: React.FC = () => {
-    return <OpenChamberVisualSettings visibleSettings={['theme', 'fontSize', 'spacing']} />;
+    return <OpenChamberVisualSettings visibleSettings={['theme', 'fontSize', 'spacing', 'inputBarOffset']} />;
 };
 
 // Chat section: Default Tool Output, Diff layout, Show reasoning traces, Queue mode

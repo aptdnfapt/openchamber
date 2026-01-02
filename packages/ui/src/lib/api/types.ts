@@ -222,6 +222,7 @@ export interface GitAddWorktreePayload {
   path: string;
   branch: string;
   createBranch?: boolean;
+  startPoint?: string;
 }
 
 export interface GitRemoveWorktreePayload {
@@ -407,7 +408,6 @@ export interface RuntimeAPIs {
   diagnostics?: DiagnosticsAPI;
   tools: ToolsAPI;
   editor?: EditorAPI;
-
   worktrees?: WorktreeMetadata[];
 }
 
@@ -496,3 +496,4 @@ export interface SkillsInstallResponse {
   skipped?: Array<{ skillName: string; reason: string }>;
   error?: SkillsInstallError;
 }
+

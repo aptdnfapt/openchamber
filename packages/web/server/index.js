@@ -3400,12 +3400,12 @@ async function main(options = {}) {
         return res.status(400).json({ error: 'directory parameter is required' });
       }
 
-      const { path, branch, createBranch } = req.body;
+      const { path, branch, createBranch, startPoint } = req.body;
       if (!path || !branch) {
         return res.status(400).json({ error: 'path and branch are required' });
       }
 
-      const result = await addWorktree(directory, path, branch, { createBranch });
+      const result = await addWorktree(directory, path, branch, { createBranch, startPoint });
       res.json(result);
     } catch (error) {
       console.error('Failed to add worktree:', error);
@@ -3612,7 +3612,9 @@ async function main(options = {}) {
           const isSymbolicLink = dirent.isSymbolicLink();
 
           if (!isDirectory && isSymbolicLink) {
-            try {
+
+  try {
+
               const linkStats = await fsPromises.stat(entryPath);
               isDirectory = linkStats.isDirectory();
             } catch {
@@ -4038,6 +4040,7 @@ async function main(options = {}) {
     console.log(`Force killed ${killedCount} terminal session(s)`);
     res.json({ success: true, killedCount });
   });
+
 
   try {
     // Check if we can reuse an existing OpenCode process from a previous HMR cycle
