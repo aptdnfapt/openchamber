@@ -114,6 +114,7 @@ SDK-managed SSE with AsyncGenerator, temp->real session ID swap (optimistic UI),
 - Adding `eslint-disable` requires justification in a comment explaining why typing is impossible
 - Do **not** use `any` or `unknown` casts as escape hatches; build narrow adapter interfaces instead
 - Refactors or new features must keep existing lint/type baselines green
+- always check opencode repo for api reference and inspiration . the repo is in ../opencode . if it doesnt exists there ask user to find it 
 
 ### Theme Integration
 
