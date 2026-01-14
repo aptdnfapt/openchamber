@@ -41,7 +41,12 @@ let batchQueue: QueuedPart[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const USER_BATCH_WINDOW_MS = 50;
+const ASSISTANT_BATCH_WINDOW_MS = 16; // ~60fps - batch assistant streaming updates
 const COMPACTION_WINDOW_MS = 30_000;
+
+// Separate queue for assistant messages (high frequency during streaming)
+let assistantBatchQueue: QueuedPart[] = [];
+let assistantFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const timeoutRegistry = new Map<string, ReturnType<typeof setTimeout>>();
 const lastContentRegistry = new Map<string, string>();
@@ -1392,12 +1397,29 @@ export const useMessageStore = create<MessageStore>()(
                 },
 
                 addStreamingPart: (sessionId: string, messageId: string, part: Part, role?: string, currentSessionId?: string) => {
-
+                    // Batch assistant messages (high frequency during streaming) for better performance
                     if (role !== 'user') {
-                        get()._addStreamingPartImmediate(sessionId, messageId, part, role, currentSessionId);
+                        assistantBatchQueue.push({ sessionId, messageId, part, role, currentSessionId });
+
+                        if (!assistantFlushTimer) {
+                            assistantFlushTimer = setTimeout(() => {
+                                const itemsToProcess = [...assistantBatchQueue];
+                                assistantBatchQueue = [];
+                                assistantFlushTimer = null;
+
+                                if (itemsToProcess.length === 0) return;
+
+                                // Process all batched items in a single store update
+                                const store = get();
+                                for (const item of itemsToProcess) {
+                                    store._addStreamingPartImmediate(item.sessionId, item.messageId, item.part, item.role, item.currentSessionId);
+                                }
+                            }, ASSISTANT_BATCH_WINDOW_MS);
+                        }
                         return;
                     }
 
+                    // User messages use longer batch window
                     batchQueue.push({ sessionId, messageId, part, role, currentSessionId });
 
                     if (!flushTimer) {

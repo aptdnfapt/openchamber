@@ -361,7 +361,8 @@ export const useEventStream = () => {
   const maybeBootstrapIfStale = React.useCallback(
     (reason: string) => {
       const now = Date.now();
-      if (now - lastEventTimestampRef.current > 25000) {
+      // Increased from 25s to 60s - reduces unnecessary bootstraps over slow connections
+      if (now - lastEventTimestampRef.current > 60000) {
         void bootstrapState(reason);
         lastEventTimestampRef.current = now;
       }
@@ -489,7 +490,8 @@ export const useEventStream = () => {
     if (sessionStatusRefreshInFlightRef.current) {
       return sessionStatusRefreshInFlightRef.current;
     }
-    if (now - sessionStatusLastRefreshAtRef.current < 1500) {
+    // Increased debounce from 1.5s to 5s to reduce API calls over slow connections
+    if (now - sessionStatusLastRefreshAtRef.current < 5000) {
       return;
     }
     sessionStatusLastRefreshAtRef.current = now;
@@ -1665,6 +1667,8 @@ export const useEventStream = () => {
       clearInterval(staleCheckIntervalRef.current);
     }
 
+    // Reduced polling frequency: 30s instead of 10s to reduce network load
+    // This is especially important for remote connections (Tailscale, etc.)
     staleCheckIntervalRef.current = setInterval(() => {
       if (!shouldHoldConnection()) return;
 
@@ -1672,10 +1676,12 @@ export const useEventStream = () => {
       const hasBusySessions = Array.from(useSessionStore.getState().sessionActivityPhase?.values?.() ?? []).some(
         (phase) => phase === 'busy' || phase === 'cooldown'
       );
-      if (hasBusySessions) {
+      // Only poll if there are busy sessions AND enough time has passed
+      if (hasBusySessions && now - sessionStatusLastRefreshAtRef.current > 5000) {
         void refreshSessionActivityStatus();
       }
-      if (now - lastEventTimestampRef.current > 25000) {
+      // Increased stale threshold from 25s to 45s to reduce unnecessary reconnects
+      if (now - lastEventTimestampRef.current > 45000) {
         Promise.resolve().then(async () => {
           try {
             const healthy = await opencodeClient.checkHealth();
@@ -1690,7 +1696,7 @@ export const useEventStream = () => {
           }
         });
       }
-    }, 10000);
+    }, 30000);
 
     return () => {
       clearTimeout(startTimer);

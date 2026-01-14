@@ -141,12 +141,13 @@ class OpencodeService {
 
   private globalSseAbortController: AbortController | null = null;
   private globalSseTask: Promise<void> | null = null;
-  // Deprecated: SDK handles reconnection directly via client.global.event()
   private globalSseLastEventId: string | undefined;
   private globalSseIsConnected = false;
   private globalSseListeners: Set<(event: RoutedOpencodeEvent) => void> = new Set();
   private globalSseOpenListeners: Set<() => void> = new Set();
   private globalSseErrorListeners: Set<(error: unknown) => void> = new Set();
+  private sdkGlobalEventTask: Promise<void> | null = null;
+  private sdkGlobalEventController: { abort: () => void } | null = null;
 
   constructor(baseUrl: string = DEFAULT_BASE_URL) {
     const desktopBase = resolveDesktopBaseUrl();
@@ -947,8 +948,6 @@ class OpencodeService {
     }
   }
 
-  // Legacy SSE parsing - superseded by SDK client.global.event()
-  // Kept for reference; not used in current implementation
   private parseSseBlock(block: string): { data: unknown; id?: string } | null {
     if (!block) return null;
 
@@ -984,8 +983,6 @@ class OpencodeService {
     }
   }
 
-  // Legacy event normalization - superseded by SDK which returns routed events directly
-  // Kept for reference; not used in current implementation
   private normalizeRoutedSsePayload(raw: unknown): RoutedOpencodeEvent | null {
     if (!raw || typeof raw !== 'object') {
       return null;
@@ -1092,25 +1089,28 @@ class OpencodeService {
   }
 
   private async runGlobalSseLoop(abortController: AbortController): Promise<void> {
+    const globalEndpoint = `${this.baseUrl.replace(/\/+$/, '')}/global/event`;
     let attempt = 0;
-
-    // Type for queued events (directory + payload)
-    type Queued = { directory: string; payload: Event };
 
     while (!abortController.signal.aborted) {
       try {
-        const events = await this.client.global.event({
+        const headers: Record<string, string> = {
+          Accept: 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        };
+        if (this.globalSseLastEventId) {
+          headers['Last-Event-ID'] = this.globalSseLastEventId;
+        }
+
+        const response = await fetch(globalEndpoint, {
+          method: 'GET',
+          headers,
           signal: abortController.signal,
-          sseDefaultRetryDelay: 3000,
-          sseMaxRetryDelay: 30000,
-          onSseError: (error: unknown) => {
-            if ((error as Error)?.name === 'AbortError' || abortController.signal.aborted) {
-              return;
-            }
-            console.error('[OpencodeClient] Global SSE stream error (will retry):', error);
-            this.notifyGlobalSseError(error);
-          },
         });
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Global SSE connect failed with status ${response.status}`);
+        }
 
         attempt = 0;
         this.globalSseIsConnected = true;
@@ -1118,89 +1118,47 @@ class OpencodeService {
           this.notifyGlobalSseOpen();
         }
 
-        // Event coalescing for high-throughput events
-        const queue: Array<Queued | undefined> = [];
-        const coalesced = new Map<string, number>();
-        let lastFlush = Date.now();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        // Key function for coalescing: identifies unique events for deduplication
-        const key = (directory: string, payload: Event): string => {
-          if (payload.type === 'session.status') {
-            const properties = payload.properties as { sessionID?: string } | undefined;
-            return `session.status:${directory}:${properties?.sessionID ?? 'unknown'}`;
-          }
-          if (payload.type === 'message.part.updated') {
-            const properties = payload.properties as { messageID?: string; id?: string } | undefined;
-            const messageID = properties?.messageID ?? 'unknown';
-            const partId = properties?.id ?? 'unknown';
-            return `message.part.updated:${directory}:${messageID}:${partId}`;
-          }
-          // For non-coalesced events, use type-based key (avoid expensive JSON.stringify)
-          return `${directory}:${payload.type}:${Date.now()}`;
-        };
-
-        const addEvent = (directory: string, payload: Event) => {
-          const eventKey = key(directory, payload);
-
-      // For coalesced event types, replace previous entry with undefined; for others, queue normally
-          if (payload.type === 'session.status' || payload.type === 'message.part.updated') {
-            const index = coalesced.get(eventKey);
-            if (typeof index === 'number') {
-              // Mark previous event as undefined (replaced by newer version)
-              queue[index] = undefined;
-            }
-            const nextIndex = queue.length;
-            queue.push({ directory, payload });
-            coalesced.set(eventKey, nextIndex);
-          } else {
-            queue.push({ directory, payload });
-          }
-        };
-
-        const flush = () => {
-          const events = queue;
-          queue.length = 0;
-          coalesced.clear();
-          lastFlush = Date.now();
-
-          for (const event of events) {
-            if (!event) continue;
-            this.emitGlobalSseEvent({ directory: event.directory, payload: event.payload });
-          }
-        };
-
-        const schedule = () => {
-          // Flush after 16ms or if queue is large, whichever comes first
-          const elapsed = Date.now() - lastFlush;
-          if (elapsed >= 16 || queue.length >= 50) {
-            flush();
-          }
-        };
-
-        // Process event stream with yield pattern
-        let yielded = Date.now();
-        for await (const event of events.stream) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
           if (abortController.signal.aborted) break;
+          if (!value || value.length === 0) continue;
 
-          // SDK returns directory-separated event
-          const globalEvent = event as unknown as { directory: string; payload: Event };
-          const normalizedDirectory = this.normalizeCandidatePath(globalEvent.directory) ?? globalEvent.directory;
+          buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
+          const blocks = buffer.split('\n\n');
+          buffer = blocks.pop() ?? '';
 
-          addEvent(normalizedDirectory, globalEvent.payload);
-          schedule();
+          for (const block of blocks) {
+            const parsed = this.parseSseBlock(block);
+            if (!parsed) continue;
+            if (parsed.id) {
+              this.globalSseLastEventId = parsed.id;
+            }
 
-          // Every 8ms, yield to prevent blocking UI
-          const now = Date.now();
-          if (now - yielded >= 8) {
-            yielded = now;
-            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            const routed = this.normalizeRoutedSsePayload(parsed.data);
+            if (routed) {
+              this.emitGlobalSseEvent(routed);
+            }
           }
         }
 
-        // Flush remaining events
-        flush();
+        const remaining = buffer.trim();
+        if (remaining && !abortController.signal.aborted) {
+          const parsed = this.parseSseBlock(remaining);
+          if (parsed?.id) {
+            this.globalSseLastEventId = parsed.id;
+          }
+          const routed = parsed ? this.normalizeRoutedSsePayload(parsed.data) : null;
+          if (routed) {
+            this.emitGlobalSseEvent(routed);
+          }
+        }
 
-        // Stream ended; force reconnect
+        // Stream ended; force reconnect.
         this.globalSseIsConnected = false;
       } catch (error: unknown) {
         this.globalSseIsConnected = false;
